@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
     "Recordize"
-  ]
+  ],
+  "typescript.tsdk": "node_modules/typescript/lib"
 }
