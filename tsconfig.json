@@ -5,12 +5,9 @@
     "jsx": "react",
     "lib": [
       "dom",
+      "es2015",
       "es2017"
     ],
     "strict": true
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noImplicitReturns": true,
-    // "noFallthroughCasesInSwitch": true
   }
 }

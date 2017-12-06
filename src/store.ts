@@ -2,25 +2,25 @@ import * as Immutable from 'immutable';
 import { merge } from 'lodash';
 
 function define<T>(recordDefault: T) {
-  const BaseRecordClass: new (t?: T) => Immutable.Record<T> = Immutable.Record(recordDefault);
+  const BaseRecordClass: new (t?: Partial<T>) => Immutable.Record<T> = Immutable.Record(recordDefault);
   class RecordClass extends BaseRecordClass {
     static _recordDefault = recordDefault;
   }
-  return RecordClass as any as new (t?: T) => Immutable.Record<T> & Readonly<T> & RecordClass;
+  return RecordClass as any as new (t?: Partial<T>) => Immutable.Record<T> & Readonly<T> & RecordClass;
 }
 
 const Record = {
   define
 };
 
-function createGraph<T>(TFactory: new (t?: T) => Immutable.Record<T> & Readonly<T>) {
+function createGraph<T>(TFactory: new (t?: Partial<T>) => Immutable.Record<T> & Readonly<T>) {
 
   const instancePointer = {
     instance: undefined as any as Immutable.Record<T> & Readonly<T>,
   };
 
-  function wrap<V>(factory: new (v?: V) => Immutable.Record<V> & Readonly<V>) {
-    const Factory = factory as new (v?: V) => Immutable.Record<V>;
+  function wrap<V>(factory: new (v?: Partial<V>) => Immutable.Record<V> & Readonly<V>) {
+    const Factory = factory as new (v?: Partial<V>) => Immutable.Record<V>;
 
     // memo, given an instance will return another memo.
     // if you get that memo the params, it will return the value
@@ -67,43 +67,38 @@ function createGraph<T>(TFactory: new (t?: T) => Immutable.Record<T> & Readonly<
       }
     }
 
-    return Wrapped as new (v?: V) => Immutable.Record<V> & Readonly<V> & Wrapped;
+    return Wrapped as new (v?: Partial<V>) => Immutable.Record<V> & Readonly<V> & Wrapped;
   }
-
-  const blankMap = Immutable.Map();
 
   function base<V>(vRecordDefault: V) {
     const tRecordDefault = (TFactory as any)._recordDefault as T;
     const recordDefault = merge(vRecordDefault, tRecordDefault);
-    const Factory = Immutable.Record(recordDefault) as new (p?: T & V) => Immutable.Record<T & V>;
+    const Factory = Immutable.Record(
+      recordDefault
+    ) as new (p?: Partial<T & V>) => Immutable.Record<T & V>;
 
     class GraphBase extends Factory {
       constructor(...args: any[]) {
         super(...args);
         (instancePointer as any).instance = this;
       }
-
-      update(...args: any[]) {
-        const result = (super.update as any)(...args);
-        instancePointer.instance = result;
-        return result;
-      }
     }
 
-    // const persistentChanges: Array<keyof typeof blankMap> = [
-    //   'set', 'delete', 'update'
-    // ];
+    const persistentChanges: Array<keyof Immutable.Record<any>> = [
+      'set', 'update', 'merge', 'mergeDeep', 'mergeWith', 'mergeDeepWith', 'delete', 'clear',
+      'setIn', 'updateIn', 'mergeIn', 'mergeDeepIn', 'deleteIn', 'withMutations', 'asMutable',
+      'asImmutable'
+    ];
 
-    // persistentChanges.forEach(method => {
-    //   (GraphBase.prototype as any)[method] = function (...args: any[]) {
-    //     const result = (GraphBase.prototype as any)[method].call(this, ...args);
-    //     (instancePointer as any).instance = result;
-    //     return result;
-    //   }
-    // });
+    persistentChanges.forEach(method => {
+      (GraphBase.prototype as any)[method] = function (...args: any[]) {
+        const result = (Factory.prototype as any)[method].call(this, ...args);
+        (instancePointer as any).instance = result;
+        return result;
+      }
+    });
 
-
-    return GraphBase as new (v?: V) => Immutable.Record<T & V> & Readonly<T & V> & GraphBase;
+    return GraphBase as new (v?: Partial<T & V>) => Immutable.Record<T & V> & Readonly<T & V> & GraphBase;
   }
 
   return { wrap, base };
