@@ -1,18 +1,24 @@
 import * as Immutable from 'immutable';
+import { merge } from 'lodash';
 
 function define<T>(recordDefault: T) {
   const BaseRecordClass: new (t?: T) => Immutable.Record<T> = Immutable.Record(recordDefault);
   class RecordClass extends BaseRecordClass {
-
+    static _recordDefault = recordDefault;
   }
-  return RecordClass as new (t?: T) => Immutable.Record<T> & Readonly<T> & RecordClass;
+  return RecordClass as any as new (t?: T) => Immutable.Record<T> & Readonly<T> & RecordClass;
 }
 
 const Record = {
   define
 };
 
-function createGraph<T>(t: T) {
+function createGraph<T>(TFactory: new (t?: T) => Immutable.Record<T> & Readonly<T>) {
+
+  const instancePointer = {
+    instance: undefined as any as Immutable.Record<T> & Readonly<T>,
+  };
+
   function wrap<V>(factory: new (v?: V) => Immutable.Record<V> & Readonly<V>) {
     const Factory = factory as new (v?: V) => Immutable.Record<V>;
 
@@ -22,16 +28,19 @@ function createGraph<T>(t: T) {
     type MethodCache = WeakMap<Wrapped, Immutable.Map<Parameter, any>>;
     const cache: { [key: string]: MethodCache | undefined } = {};
 
-    const EmptyRecord = Immutable.Record({});
-
     class Wrapped extends Factory {
-      graph = t;
+
+      get graph() {
+        return instancePointer.instance;
+      }
 
       getOrCalculate<R, U extends { [key: string]: Immutable.Record<any> } | Immutable.Record<any>>(
         key: string,
         using: (t: T) => U,
         calculate: (u: U) => R
       ) {
+
+        // return calculate(using(this.graph));
 
         const methodCache = cache[key] || new WeakMap<Wrapped, Immutable.Map<Parameter, any>>();
         const valueCache = methodCache.get(this) || Immutable.Map<Parameter, any>();
@@ -61,7 +70,43 @@ function createGraph<T>(t: T) {
     return Wrapped as new (v?: V) => Immutable.Record<V> & Readonly<V> & Wrapped;
   }
 
-  return { wrap };
+  const blankMap = Immutable.Map();
+
+  function base<V>(vRecordDefault: V) {
+    const tRecordDefault = (TFactory as any)._recordDefault as T;
+    const recordDefault = merge(vRecordDefault, tRecordDefault);
+    const Factory = Immutable.Record(recordDefault) as new (p?: T & V) => Immutable.Record<T & V>;
+
+    class GraphBase extends Factory {
+      constructor(...args: any[]) {
+        super(...args);
+        (instancePointer as any).instance = this;
+      }
+
+      update(...args: any[]) {
+        const result = (super.update as any)(...args);
+        instancePointer.instance = result;
+        return result;
+      }
+    }
+
+    // const persistentChanges: Array<keyof typeof blankMap> = [
+    //   'set', 'delete', 'update'
+    // ];
+
+    // persistentChanges.forEach(method => {
+    //   (GraphBase.prototype as any)[method] = function (...args: any[]) {
+    //     const result = (GraphBase.prototype as any)[method].call(this, ...args);
+    //     (instancePointer as any).instance = result;
+    //     return result;
+    //   }
+    // });
+
+
+    return GraphBase as new (v?: V) => Immutable.Record<T & V> & Readonly<T & V> & GraphBase;
+  }
+
+  return { wrap, base };
 }
 
 class UserRecord extends Record.define({ a: 'something' }) {
@@ -77,7 +122,6 @@ class SemesterRecord extends Record.define({}) {
 }
 
 class GradingSystemRecord extends Record.define({
-
 }) { }
 
 class CourseRecord extends Record.define({}) {
@@ -89,7 +133,7 @@ class AppRecord extends Record.define({
 }) {
 }
 
-const graph = createGraph(new AppRecord());
+const graph = createGraph(AppRecord);
 
 class Course extends graph.wrap(CourseRecord) {
   get letterGrade() {
@@ -102,11 +146,20 @@ class Course extends graph.wrap(CourseRecord) {
   }
 }
 
-class Final extends Record.define({
-  course: new Course()
-}) { }
 
-console.log(new Final().course.letterGrade);
-console.log(new Final().course.letterGrade);
-console.log(new Final().course.letterGrade);
-console.log(new Final().course.letterGrade);
+class Final extends graph.base({
+  course: new Course(),
+}) {
+  method() {
+  }
+}
+
+
+
+const final = new Final();
+console.log(final.course.letterGrade);
+const newFinal = new Final().update('user', user => user.set('a', 'something else')).update('user', user => user.set('a', 'something else else'));
+console.log(newFinal.user.a);
+console.log(newFinal.course.letterGrade);
+console.log(newFinal.course.letterGrade);
+console.log(newFinal.course.letterGrade);
