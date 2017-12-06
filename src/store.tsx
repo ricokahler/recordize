@@ -1,5 +1,8 @@
 import * as Immutable from 'immutable';
 import { merge } from 'lodash';
+import * as React from 'react';
+import * as Rx from 'rxjs';
+import * as ReactDOM from 'react-dom';
 
 function define<T>(recordDefault: T) {
   const BaseRecordClass: new (t?: Partial<T>) => Immutable.Record<T> = Immutable.Record(recordDefault);
@@ -104,57 +107,70 @@ function createGraph<T>(TFactory: new (t?: Partial<T>) => Immutable.Record<T> & 
   return { wrap, base };
 }
 
-class UserRecord extends Record.define({ a: 'something' }) {
-  method() {
+type V<T, A> = {[K in keyof A]: (t: T) => A[K]};
 
+function createStore<T>(t: T) {
+  const updateStream = new Rx.Subject<(previousStore: T) => T>();
+  const stateStream = updateStream.scan((state, update) => {
+    return update(state)
+  }, t);
+  function connect<P, S, A extends any>(params: V<T, A>) {
+    class ComponentClass extends React.Component<P, A> {
+      constructor(props: P, context?: any) {
+        super(props, context);
+        this.state = Object.entries(params).reduce((stateToSet, [key, pathGetter]) => {
+          stateToSet[key] = pathGetter(t)
+          return stateToSet;
+        }, {} as A);
+        stateStream.subscribe(state => {
+          console.log({state})
+          const stateToSet = Object.entries(params).reduce((stateToSet, [key, pathGetter]) => {
+            stateToSet[key] = pathGetter(state)
+            return stateToSet;
+          }, {} as A);
+          this.setState(previousState => ({ ...(previousState as any), ...(stateToSet as any) }))
+        });
+      }
+
+      updateStream = updateStream;
+
+      // sendUpdate(updater: (previousState: {[P in keyof O]: any}) => {[P in keyof O]: any}) {
+      //   updateStream.next(previousStore => {
+      //     Object.entries(params).reduce((stateToSet, [key, pathGetter]) => {
+      //       stateToSet[key] = pathGetter(previousStore)
+      //       return stateToSet;
+      //     }, {} as any);
+
+      //     return previousStore;
+      //   });
+      // }
+    }
+    return ComponentClass;
   }
+
+  return { connect };
 }
 
-class SemesterRecord extends Record.define({}) {
-  get gpa() {
-    return undefined;
-  }
-}
-
-class GradingSystemRecord extends Record.define({
+class Simple extends Record.define({
+  count: 0,
 }) { }
 
-class CourseRecord extends Record.define({}) {
-}
 
-class AppRecord extends Record.define({
-  user: new UserRecord(),
+const store = createStore(new Simple());
 
+class SomeComponent extends store.connect({
+  count: store => store.count
 }) {
-}
 
-const graph = createGraph(AppRecord);
-
-class Course extends graph.wrap(CourseRecord) {
-  get letterGrade() {
-    return this.getOrCalculate('letterGrade', g => ({ user: g.user, t: g.user }),
-      ({ user, t }) => {
-        console.log('letter grade calculated')
-        return user.a;
-      }
-    );
+  render() {
+    return <div>
+      <h1>{this.state.count}</h1>
+      <button onClick={() => {
+        this.updateStream.next(store => store.update('count', count => count + 1))
+      }}>+</button>
+    </div>;
   }
 }
 
 
-class Final extends graph.base({
-  course: new Course(),
-}) {
-  method() {
-  }
-}
-
-
-
-const final = new Final();
-console.log(final.course.letterGrade);
-const newFinal = new Final().update('user', user => user.set('a', 'something else')).update('user', user => user.set('a', 'something else else'));
-console.log(newFinal.user.a);
-console.log(newFinal.course.letterGrade);
-console.log(newFinal.course.letterGrade);
-console.log(newFinal.course.letterGrade);
+ReactDOM.render(<SomeComponent />, document.querySelector('.app'));

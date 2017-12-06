@@ -1,3 +1,12 @@
 module.exports = {
-  entry: './src/index.ts'
+  entry: './src/store.tsx',
+  output: {
+    filename: 'bundle.js'
+  },
+  module: {
+    rules: [
+      {test: /\.tsx?/, loader: 'awesome-typescript-loader'}
+    ]
+  },
+  devtool: 'source-map'
 };
