@@ -1,80 +1,107 @@
 import * as Immutable from 'immutable';
 
-interface HasInit {
-  init: () => void;
+function define<T>(recordDefault: T) {
+  const BaseRecordClass: new (t?: T) => Immutable.Record<T> = Immutable.Record(recordDefault);
+  class RecordClass extends BaseRecordClass {
+
+  }
+  return RecordClass as new (t?: T) => Immutable.Record<T> & Readonly<T> & RecordClass;
 }
 
-function createStore<V, R>(
-  getDefault: () => V,
-  storeDefinition: (Definition: Immutable.Record.Factory<V>) => new (v?: V) => R
-) {
+const Record = {
+  define
+};
 
-  const instancePointer = {
-    store: undefined as any as R
-  };
+function createGraph<T>(t: T) {
+  function wrap<V>(factory: new (v?: V) => Immutable.Record<V> & Readonly<V>) {
+    const Factory = factory as new (v?: V) => Immutable.Record<V>;
 
-  function r<R>(t: new (...params: any[]) => R) {
-    return t as new (...params: any[]) => R;
-  }
+    // memo, given an instance will return another memo.
+    // if you get that memo the params, it will return the value
+    const memo = new WeakMap<Wrapped, WeakMap<any, any>>();
 
-  function define<T>(recordDefault: T) {
-    const memo = new WeakMap<any, any>();
+    const EmptyRecord = Immutable.Record({});
 
+    class Wrapped extends Factory {
+      graph = t;
 
-    const RecordClass = Immutable.Record(recordDefault) as new (t?: T) => Immutable.Record<T>;
+      getOrCalculate<R, U extends { [key: string]: Immutable.Record<any> } | Immutable.Record<any>>(
+        key: string,
+        using: (t: T) => U,
+        calculate: (u: U) => R
+      ) {
 
-    class TheClass extends RecordClass {
-      get store() {
-        return instancePointer.store;
-      }
-      getOrCalculate<T>(key: string, calculate: () => T): T {
-        if (memo.has(this)) {
-          return memo.get(this);
+        const paramsMemo = memo.get(this) || new WeakMap<any, any>();
+        const paramsGiven = using(this.graph);
+        if (typeof paramsGiven !== 'object') {
+          throw new Error('params must be an object');
         }
-        const value = calculate();
-        memo.set(this, value);
+        // const parameters = (/*if*/ Immutable.isCollection(paramsGiven)
+        //   // the `using` traversal mapped directly
+        //   ? paramsGiven
+        //   // the `using` traversal mapped to an object first
+        //   : Object.keys(paramsGiven).reduce((immutableParams, key) => {
+        //     return immutableParams;
+        //   }, {})
+        // );
+
+        if (paramsMemo.has(paramsGiven)) {
+          return paramsMemo.get(paramsGiven);
+        }
+
+        const value = calculate(paramsGiven);
+
+        paramsMemo.set(paramsGiven, value);
+
         return value;
       }
     }
 
-    return TheClass as new (t?: T) => Immutable.Record<T> & Readonly<T> & TheClass;
+    return Wrapped as new (v?: V) => Immutable.Record<V> & Readonly<V> & Wrapped;
   }
 
-  function init() {
-    // const Store = storeDefinition(recordDefault => {
-    //   return Immutable.Record(recordDefault);
-    // });
-
-    // instancePointer.store = new Store();
-  }
-
-
-  return {
-    define,
-    get instance() {
-      return instancePointer.store;
-    },
-    init
-  };
+  return { wrap };
 }
 
-const store = createStore(() => ({
-  a: 5,
-  user: new User(),
-}), Definition => class extends Definition {
+class UserRecord extends Record.define({ a: 'something' }) {
   method() {
-    
-  }
-});
 
-class User extends store.define({ b: 5 }) {
-  method() {
-    // this.store
-  }
-
-  get computed() {
-    return this.getOrCalculate('test', () => {
-      return 4;
-    });
   }
 }
+
+class SemesterRecord extends Record.define({}) {
+  get gpa() {
+    return undefined;
+  }
+}
+
+class GradingSystemRecord extends Record.define({
+
+}) { }
+
+class CourseRecord extends Record.define({}) {
+}
+
+class AppRecord extends Record.define({
+  user: new UserRecord(),
+
+}) {
+}
+
+const graph = createGraph(new AppRecord());
+
+class Course extends graph.wrap(CourseRecord) {
+  get letterGrade() {
+    return this.getOrCalculate('letterGrade', g => ({ user: g.user, t: g.user }),
+      ({ user, t }) => {
+        return user.a;
+      }
+    );
+  }
+}
+
+class Final extends Record.define({
+  course: new Course()
+}) { }
+
+console.log(new Final().course.letterGrade);
