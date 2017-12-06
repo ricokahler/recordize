@@ -18,7 +18,9 @@ function createGraph<T>(t: T) {
 
     // memo, given an instance will return another memo.
     // if you get that memo the params, it will return the value
-    const memo = new WeakMap<Wrapped, WeakMap<any, any>>();
+    type Parameter = Immutable.Record<any> | Immutable.Map<string, any>;
+    type MethodCache = WeakMap<Wrapped, Immutable.Map<Parameter, any>>;
+    const cache: { [key: string]: MethodCache | undefined } = {};
 
     const EmptyRecord = Immutable.Record({});
 
@@ -31,28 +33,27 @@ function createGraph<T>(t: T) {
         calculate: (u: U) => R
       ) {
 
-        const paramsMemo = memo.get(this) || new WeakMap<any, any>();
+        const methodCache = cache[key] || new WeakMap<Wrapped, Immutable.Map<Parameter, any>>();
+        const valueCache = methodCache.get(this) || Immutable.Map<Parameter, any>();
         const paramsGiven = using(this.graph);
         if (typeof paramsGiven !== 'object') {
           throw new Error('params must be an object');
         }
-        // const parameters = (/*if*/ Immutable.isCollection(paramsGiven)
-        //   // the `using` traversal mapped directly
-        //   ? paramsGiven
-        //   // the `using` traversal mapped to an object first
-        //   : Object.keys(paramsGiven).reduce((immutableParams, key) => {
-        //     return immutableParams;
-        //   }, {})
-        // );
+        const lookupableParameters = (/*if*/ Immutable.isCollection(paramsGiven)
+          // the `using` traversal mapped directly
+          ? paramsGiven as Immutable.Record<any>
+          // the `using` traversal mapped to an object first
+          : Immutable.fromJS(paramsGiven) as Immutable.Map<string, any>
+        );
 
-        if (paramsMemo.has(paramsGiven)) {
-          return paramsMemo.get(paramsGiven);
+        if (valueCache.has(lookupableParameters)) {
+          return valueCache.get(lookupableParameters);
         }
 
         const value = calculate(paramsGiven);
-
-        paramsMemo.set(paramsGiven, value);
-
+        const newValueCache = valueCache.set(lookupableParameters, value);
+        methodCache.set(this, newValueCache);
+        cache[key] = methodCache;
         return value;
       }
     }
@@ -94,6 +95,7 @@ class Course extends graph.wrap(CourseRecord) {
   get letterGrade() {
     return this.getOrCalculate('letterGrade', g => ({ user: g.user, t: g.user }),
       ({ user, t }) => {
+        console.log('letter grade calculated')
         return user.a;
       }
     );
@@ -104,4 +106,7 @@ class Final extends Record.define({
   course: new Course()
 }) { }
 
+console.log(new Final().course.letterGrade);
+console.log(new Final().course.letterGrade);
+console.log(new Final().course.letterGrade);
 console.log(new Final().course.letterGrade);
