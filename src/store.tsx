@@ -109,7 +109,7 @@ function createGraph<T>(TFactory: new (t?: Partial<T>) => Immutable.Record<T> & 
 
 type V<T, A> = {[K in keyof A]: (t: T) => A[K]};
 
-function createStore<T>(t: T) {
+function createStore<T extends Immutable.Record<any>>(t: T) {
   const updateStream = new Rx.Subject<(previousStore: T) => T>();
   const stateStream = updateStream.scan((state, update) => {
     return update(state)
@@ -125,10 +125,10 @@ function createStore<T>(t: T) {
         }, {} as A);
         this.state = Object.freeze(merge(defaultStateFromStore, this.defaultState));
 
-        stateStream.subscribe(state => {
-          const stateToSet = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
-            stateToSet[key] = pathGetter(state)
-            return stateToSet;
+        stateStream.subscribe(store => {
+          const stateToSet = Object.entries(mapping).reduce((stateFromStore, [key, pathGetter]) => {
+            stateFromStore[key] = pathGetter(store)
+            return stateFromStore;
           }, {} as A);
           this.setState(previousState => ({ ...(previousState as any), ...(stateToSet as any) }))
         });
@@ -138,15 +138,41 @@ function createStore<T>(t: T) {
 
       updateStream = updateStream;
 
-      sendUpdate(updater: (previousState: A) => A) {
+      sendUpdate(update: (previousState: A) => A) {
         updateStream.next(previousStore => {
-          Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
+
+          const ps = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
             stateToSet[key] = pathGetter(previousStore)
             return stateToSet;
-          }, {} as any);
+          }, {} as A);
 
-          return previousStore;
+          const s = update(ps);
+
+
+
+          const newStore = Object.entries(s).reduce((newStore, [_key, newValue]) => {
+            const key = _key as keyof A;
+            const pathGetter = mapping[key];
+            newStore.toJS()
+
+            // pathGetter(newStore) set newValue
+            // newStore.set()
+
+            // previousStore.setIn(getterPath, newValue)
+            return newStore;
+          }, previousStore);
+
+          // first need to make ps                                [x]
+          // then need to apply update: update(ps) => newPs       [x]
+          // then need to map PS back to store                    [ ]
+
+
+          return newStore;
         });
+      }
+
+      sendGlobalUpdate(update: (previousStore: T) => T) {
+        updateStream.next(update);
       }
     }
     return ComponentClass;
@@ -155,9 +181,14 @@ function createStore<T>(t: T) {
   return { connect };
 }
 
+class Sub extends Record.define({
+  something: 'some value'
+}) { }
+
 class Simple extends Record.define({
   count: 0,
-  hello: 'world'
+  hello: 'world',
+  sub: new Sub()
 }) { }
 
 const store = createStore(new Simple());
@@ -168,7 +199,8 @@ interface SomeComponentProps {
 interface SomeComponentState { }
 
 class SomeComponent extends store.connect({
-  count: store => store.count
+  count: store => store.count,
+  sub: store => store.sub,
 })<SomeComponentProps, SomeComponentState> {
 
   get defaultState() {
@@ -177,12 +209,13 @@ class SomeComponent extends store.connect({
 
   render() {
     return <div>
+      <span>sub something: {this.state.sub.something}</span>
       <h1>{this.state.count}</h1>
       <button onClick={() => {
         this.updateStream.next(store => store.update('count', count => count + 1))
       }}>+</button>
       <button onClick={() => {
-        this.sendUpdate(ps => ({ ...ps, count: ps.count + 1 }))
+        this.sendUpdate(ps => ({ ...ps, count: ps.count + 1, sub: ps.sub.set('something', 'new value') }))
       }}>-</button>
       <CountDisplay count={this.state.count} />
     </div>;
@@ -213,14 +246,14 @@ class SomeInputComponent extends store.connect({
     return <div>
       <h1>Hello, {this.state.hello}!</h1>
       <button onClick={() => {
-        this.setState(ps => ({ ...ps, count: (ps.count || 0) + 1 }))
+        this.setState(ps => ({ ...ps, count: ps.count + 1 }))
       }}>internal count: {this.state.count}</button>
       <SomeComponent />
       <input
         type="text"
         onInput={e => {
-          this.updateStream.next(store => store.set('hello', e.currentTarget.value));
-          this.sendUpdate(ps => ({ ...ps, hello: e.currentTarget.value }));
+          this.sendGlobalUpdate(store => store.set('hello', e.currentTarget.value));
+          // this.sendUpdate(ps => ({ ...ps, hello: e.currentTarget.value }));
         }}
         defaultValue={this.state.hello}
       />
