@@ -107,12 +107,17 @@ function createGraph<T>(TFactory: new (t?: Partial<T>) => Immutable.Record<T> & 
   return { wrap, base };
 }
 
-type V<T, A> = {[K in keyof A]: (t: T) => A[K]};
+type V<T, A> = {
+  [K in keyof A]: {
+    get: (t: T) => A[K],
+    set: (t: T, value?: any) => T
+  }
+};
 
 function createStore<T extends Immutable.Record<any>>(t: T) {
   const updateStream = new Rx.Subject<(previousStore: T) => T>();
   const stateStream = updateStream.scan((state, update) => {
-    return update(state)
+    return update(state);
   }, t);
   function connect<A extends any>(mapping: V<T, A>) {
     abstract class ComponentClass<P, S> extends React.Component<P, A & S> {
@@ -120,14 +125,14 @@ function createStore<T extends Immutable.Record<any>>(t: T) {
         super(props, context);
 
         const defaultStateFromStore = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
-          stateToSet[key] = pathGetter(t)
+          stateToSet[key] = pathGetter.get(t)
           return stateToSet;
         }, {} as A);
         this.state = Object.freeze(merge(defaultStateFromStore, this.defaultState));
 
         stateStream.subscribe(store => {
           const stateToSet = Object.entries(mapping).reduce((stateFromStore, [key, pathGetter]) => {
-            stateFromStore[key] = pathGetter(store)
+            stateFromStore[key] = pathGetter.get(store)
             return stateFromStore;
           }, {} as A);
           this.setState(previousState => ({ ...(previousState as any), ...(stateToSet as any) }))
@@ -142,30 +147,17 @@ function createStore<T extends Immutable.Record<any>>(t: T) {
         updateStream.next(previousStore => {
 
           const ps = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
-            stateToSet[key] = pathGetter(previousStore)
+            stateToSet[key] = pathGetter.get(previousStore)
             return stateToSet;
           }, {} as A);
 
           const s = update(ps);
 
-
-
           const newStore = Object.entries(s).reduce((newStore, [_key, newValue]) => {
             const key = _key as keyof A;
-            const pathGetter = mapping[key];
-            newStore.toJS()
-
-            // pathGetter(newStore) set newValue
-            // newStore.set()
-
-            // previousStore.setIn(getterPath, newValue)
-            return newStore;
+            const path = mapping[key];
+            return path.set(newStore, newValue)
           }, previousStore);
-
-          // first need to make ps                                [x]
-          // then need to apply update: update(ps) => newPs       [x]
-          // then need to map PS back to store                    [ ]
-
 
           return newStore;
         });
@@ -199,8 +191,14 @@ interface SomeComponentProps {
 interface SomeComponentState { }
 
 class SomeComponent extends store.connect({
-  count: store => store.count,
-  sub: store => store.sub,
+  count: {
+    get: store => store.count,
+    set: (store, value) => store.set('count', value)
+  },
+  sub: {
+    get: store => store.sub,
+    set: (store, value) => store.set('sub', value)
+  },
 })<SomeComponentProps, SomeComponentState> {
 
   get defaultState() {
@@ -235,7 +233,10 @@ interface SomeInputComponentState {
 }
 
 class SomeInputComponent extends store.connect({
-  hello: store => store.hello,
+  hello: {
+    get: store => store.hello,
+    set: (store, value) => store.set('hello', value)
+  },
 })<SomeInputComponentProps, SomeInputComponentState> {
 
   get defaultState() {
@@ -252,8 +253,8 @@ class SomeInputComponent extends store.connect({
       <input
         type="text"
         onInput={e => {
-          this.sendGlobalUpdate(store => store.set('hello', e.currentTarget.value));
-          // this.sendUpdate(ps => ({ ...ps, hello: e.currentTarget.value }));
+          // this.sendGlobalUpdate(store => store.set('hello', e.currentTarget.value));
+          this.sendUpdate(ps => ({ ...ps, hello: e.currentTarget.value }));
         }}
         defaultValue={this.state.hello}
       />
