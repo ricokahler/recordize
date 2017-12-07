@@ -114,17 +114,19 @@ function createStore<T>(t: T) {
   const stateStream = updateStream.scan((state, update) => {
     return update(state)
   }, t);
-  function connect<P, S, A extends any>(params: V<T, A>) {
-    class ComponentClass extends React.Component<P, A> {
+  function connect<A extends any>(mapping: V<T, A>) {
+    abstract class ComponentClass<P, S> extends React.Component<P, A & S> {
       constructor(props: P, context?: any) {
         super(props, context);
-        this.state = Object.entries(params).reduce((stateToSet, [key, pathGetter]) => {
+
+        const defaultStateFromStore = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
           stateToSet[key] = pathGetter(t)
           return stateToSet;
         }, {} as A);
+        this.state = Object.freeze(merge(defaultStateFromStore, this.defaultState));
+
         stateStream.subscribe(state => {
-          console.log({state})
-          const stateToSet = Object.entries(params).reduce((stateToSet, [key, pathGetter]) => {
+          const stateToSet = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
             stateToSet[key] = pathGetter(state)
             return stateToSet;
           }, {} as A);
@@ -132,18 +134,20 @@ function createStore<T>(t: T) {
         });
       }
 
+      abstract get defaultState(): S;
+
       updateStream = updateStream;
 
-      // sendUpdate(updater: (previousState: {[P in keyof O]: any}) => {[P in keyof O]: any}) {
-      //   updateStream.next(previousStore => {
-      //     Object.entries(params).reduce((stateToSet, [key, pathGetter]) => {
-      //       stateToSet[key] = pathGetter(previousStore)
-      //       return stateToSet;
-      //     }, {} as any);
+      sendUpdate(updater: (previousState: A) => A) {
+        updateStream.next(previousStore => {
+          Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
+            stateToSet[key] = pathGetter(previousStore)
+            return stateToSet;
+          }, {} as any);
 
-      //     return previousStore;
-      //   });
-      // }
+          return previousStore;
+        });
+      }
     }
     return ComponentClass;
   }
@@ -153,14 +157,23 @@ function createStore<T>(t: T) {
 
 class Simple extends Record.define({
   count: 0,
+  hello: 'world'
 }) { }
-
 
 const store = createStore(new Simple());
 
+interface SomeComponentProps {
+  test?: number
+}
+interface SomeComponentState { }
+
 class SomeComponent extends store.connect({
   count: store => store.count
-}) {
+})<SomeComponentProps, SomeComponentState> {
+
+  get defaultState() {
+    return {}
+  }
 
   render() {
     return <div>
@@ -168,9 +181,58 @@ class SomeComponent extends store.connect({
       <button onClick={() => {
         this.updateStream.next(store => store.update('count', count => count + 1))
       }}>+</button>
+      <button onClick={() => {
+        this.sendUpdate(ps => ({ ...ps, count: ps.count + 1 }))
+      }}>-</button>
+      <CountDisplay count={this.state.count} />
     </div>;
   }
 }
 
+function CountDisplay(props: { count: number }) {
+  return <h2>from count display: {props.count}</h2>;
+}
 
-ReactDOM.render(<SomeComponent />, document.querySelector('.app'));
+interface SomeInputComponentProps {
+  someProp?: number
+}
+
+interface SomeInputComponentState {
+  count: number
+}
+
+class SomeInputComponent extends store.connect({
+  hello: store => store.hello,
+})<SomeInputComponentProps, SomeInputComponentState> {
+
+  get defaultState() {
+    return { count: 0 };
+  }
+
+  render() {
+    return <div>
+      <h1>Hello, {this.state.hello}!</h1>
+      <button onClick={() => {
+        this.setState(ps => ({ ...ps, count: (ps.count || 0) + 1 }))
+      }}>internal count: {this.state.count}</button>
+      <SomeComponent />
+      <input
+        type="text"
+        onInput={e => {
+          this.updateStream.next(store => store.set('hello', e.currentTarget.value));
+          this.sendUpdate(ps => ({ ...ps, hello: e.currentTarget.value }));
+        }}
+        defaultValue={this.state.hello}
+      />
+    </div>
+  }
+}
+
+ReactDOM.render(<div>
+  <SomeComponent />
+  <SomeInputComponent />
+  <SomeInputComponent />
+  <SomeInputComponent />
+  <SomeInputComponent />
+  <SomeInputComponent />
+</div>, document.querySelector('.app'));
