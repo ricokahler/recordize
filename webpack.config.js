@@ -1,12 +1,19 @@
+const path = require('path');
+
 module.exports = {
-  entry: './src/store.tsx',
+  entry: './src/index.ts',
   output: {
-    filename: 'bundle.js'
+    path: path.resolve(__dirname, './dist'),
+    filename: 'recordize.js',
+    library: 'Recordize',
+    libraryTarget: 'umd',
   },
   module: {
     rules: [
-      {test: /\.tsx?/, loader: 'awesome-typescript-loader'}
+      { test: /\.ts?/, loader: 'awesome-typescript-loader' }
     ]
   },
-  devtool: 'source-map'
+  resolve: { extensions: ['.ts', '.js'] },
+  devtool: 'source-map',
+  externals: ['react', 'rxjs', 'immutable'],
 };

@@ -2,7 +2,8 @@
   "name": "recordize",
   "version": "0.0.0",
   "description": "A simple, fast, and traceable state management library",
-  "main": "index.js",
+  "main": "dist/recordize.js",
+  "typings": "src/index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -19,11 +20,9 @@
   "dependencies": {
     "@types/lodash": "^4.14.87",
     "@types/react": "^16.0.25",
-    "@types/react-dom": "^16.0.3",
     "immutable": "^4.0.0-rc.9",
     "lodash": "^4.17.4",
     "react": "^16.2.0",
-    "react-dom": "^16.2.0",
     "rxjs": "^5.5.2"
   },
   "devDependencies": {
