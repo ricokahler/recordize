@@ -114,6 +114,8 @@ Store.stateStream
   });
 ```
 
+![screenshot](./screenshot.png)
+
 # Planned features
 
 * serialization/deserialization
