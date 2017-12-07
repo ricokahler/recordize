@@ -21,6 +21,7 @@ class SomeRecord extends Record.define({
   someProperty: 'some value',
   someOtherProperty: 'some other value',
   count: 0,
+  name: 'world',
 }) {
   // you can have computed properties too
   get computedProperty() {
@@ -43,6 +44,11 @@ class SomeComponent extends Store.connect({
     set: (store, value) => store.set('count', value),
   }
 })<SomeComponentProps, SomeComponentState> {
+
+  get defaultState() {
+    return {};
+  }
+
   render() {
     return <div>
       {/* the mapped properties get placed on `this.state` so it's natural to use */}
@@ -58,8 +64,43 @@ class SomeComponent extends Store.connect({
   }
 }
 
+interface NameComponentProps { }
+interface NameComponentState { }
+
+class NameComponent extends Store.connect({
+  name: {
+    get: store => store.name,
+    set: (store, value) => store.set('name', value)
+  }
+})<NameComponentProps, NameComponentState> {
+
+  get defaultState() {
+    return {};
+  }
+
+  render() {
+    return <div>
+      <h1>Hello, {this.state.name}!</h1>
+      <input type="text" defaultValue={this.state.name} onInput={e => {
+        this.sendUpdate(previousState => ({
+          ...previousState,
+          name: e.currentTarget.value
+        }));
+      }} />
+    </div>
+  }
+}
+
+function App() {
+  return <div>
+    <NameComponent />
+    <NameComponent />
+    <SomeComponent />
+  </div>
+}
+
 // to use the connected component, just place in a react dom. No need for a provider
-ReactDOM.render(<SomeComponent />, document.querySelector('#app'));
+ReactDOM.render(<App />, document.querySelector('#app'));
 
 // you can also hook into the update stream
 Store.stateStream
