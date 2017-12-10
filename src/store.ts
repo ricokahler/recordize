@@ -3,39 +3,33 @@ import { merge } from 'lodash';
 import * as React from 'react';
 import * as Rx from 'rxjs';
 
-type V<T, A> = {
-  [K in keyof A]: {
-    get: (t: T) => A[K],
-    set: (t: T, value?: any) => T
-  }
-};
+interface Adapter<Store, Props = {}, StoreAdaptedState = {}> {
+  get: (store: Store, props?: Props) => StoreAdaptedState,
+  set: (store: Store, value?: StoreAdaptedState, props?: Props) => Store,
+}
 
-export function createStore<T extends Immutable.Record<any>>(t: T) {
-  const updateStream = new Rx.Subject<(previousStore: T) => T>();
+export function createStore<Store extends Immutable.Record<any>>(t: Store) {
+  const updateStream = new Rx.Subject<(previousStore: Store) => Store>();
   const stateStream = updateStream.scan((state, update) => update(state), t);
-  function connect<A extends any>(mapping: V<T, A>) {
-    class ComponentClass<P, S> extends React.Component<P, A & S> {
+
+  function connect<Props = {}, State = {}, StoreAdaptedState = {}>(
+    adapter: Adapter<Store, Props, StoreAdaptedState>
+  ) {
+    class ComponentClass extends React.Component<Props, State & StoreAdaptedState> {
 
       storeSubscription: Rx.Subscription | undefined;
-      updateStream = updateStream;
+      _updateStream = updateStream;
       stateStream = stateStream;
 
-      constructor(props: P, context?: any) {
+      constructor(props: Props, context?: any) {
         super(props, context);
-        const defaultStateFromStore = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
-          stateToSet[key] = pathGetter.get(t)
-          return stateToSet;
-        }, {} as A);
-        this.state = Object.freeze(merge(defaultStateFromStore, this.defaultState()));
+        this.state = adapter.get(t, this.props) as any as Readonly<State & StoreAdaptedState>;
       }
 
       componentDidMount() {
         this.storeSubscription = stateStream.subscribe(store => {
-          const stateToSet = Object.entries(mapping).reduce((stateFromStore, [key, pathGetter]) => {
-            stateFromStore[key] = pathGetter.get(store)
-            return stateFromStore;
-          }, {} as A);
-          this.setState(previousState => ({ ...(previousState as any), ...(stateToSet as any) }))
+          const stateToSet = adapter.get(store, this.props);
+          this.setState(previousState => ({ ...(previousState as any), ...(stateToSet as any) }));
         });
       }
 
@@ -45,27 +39,16 @@ export function createStore<T extends Immutable.Record<any>>(t: T) {
         }
       }
 
-      defaultState(): S | undefined {
-        return undefined;
-      };
-
-      sendUpdate(update: (previousState: A) => A) {
+      setStore(update: (previousState: StoreAdaptedState) => StoreAdaptedState) {
         updateStream.next(previousStore => {
-          const ps = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
-            stateToSet[key] = pathGetter.get(previousStore)
-            return stateToSet;
-          }, {} as A);
-          const s = update(ps);
-          const newStore = Object.entries(s).reduce((newStore, [_key, newValue]) => {
-            const key = _key as keyof A;
-            const path = mapping[key];
-            return path.set(newStore, newValue)
-          }, previousStore);
+          const adaptedStoreState = adapter.get(previousStore, this.props);
+          const updatedStoreState = update(adaptedStoreState);
+          const newStore = adapter.set(previousStore, updatedStoreState, this.props);
           return newStore;
         });
       }
 
-      sendGlobalUpdate(update: (previousStore: T) => T) {
+      setGlobalStore(update: (previousStore: Store) => Store) {
         updateStream.next(update);
       }
     }
