@@ -14,17 +14,23 @@ export function createStore<T extends Immutable.Record<any>>(t: T) {
   const updateStream = new Rx.Subject<(previousStore: T) => T>();
   const stateStream = updateStream.scan((state, update) => update(state), t);
   function connect<A extends any>(mapping: V<T, A>) {
-    abstract class ComponentClass<P, S> extends React.Component<P, A & S> {
+    class ComponentClass<P, S> extends React.Component<P, A & S> {
+
+      storeSubscription: Rx.Subscription | undefined;
+      updateStream = updateStream;
+      stateStream = stateStream;
+
       constructor(props: P, context?: any) {
         super(props, context);
-
         const defaultStateFromStore = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
           stateToSet[key] = pathGetter.get(t)
           return stateToSet;
         }, {} as A);
-        this.state = Object.freeze(merge(defaultStateFromStore, this.defaultState));
+        this.state = Object.freeze(merge(defaultStateFromStore, this.defaultState()));
+      }
 
-        stateStream.subscribe(store => {
+      componentDidMount() {
+        this.storeSubscription = stateStream.subscribe(store => {
           const stateToSet = Object.entries(mapping).reduce((stateFromStore, [key, pathGetter]) => {
             stateFromStore[key] = pathGetter.get(store)
             return stateFromStore;
@@ -33,26 +39,28 @@ export function createStore<T extends Immutable.Record<any>>(t: T) {
         });
       }
 
-      abstract get defaultState(): S;
+      componentWillUnmount() {
+        if (this.storeSubscription) {
+          this.storeSubscription.unsubscribe();
+        }
+      }
 
-      updateStream = updateStream;
+      defaultState(): S | undefined {
+        return undefined;
+      };
 
       sendUpdate(update: (previousState: A) => A) {
         updateStream.next(previousStore => {
-
           const ps = Object.entries(mapping).reduce((stateToSet, [key, pathGetter]) => {
             stateToSet[key] = pathGetter.get(previousStore)
             return stateToSet;
           }, {} as A);
-
           const s = update(ps);
-
           const newStore = Object.entries(s).reduce((newStore, [_key, newValue]) => {
             const key = _key as keyof A;
             const path = mapping[key];
             return path.set(newStore, newValue)
           }, previousStore);
-
           return newStore;
         });
       }
