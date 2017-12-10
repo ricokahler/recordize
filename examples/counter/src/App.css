@@ -1,0 +1,33 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+}
+
+.counters-container {
+  display: flex;
+}
+
+.counter {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+}
+
+.state-stream {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.state-stream__states {
+  flex: 1;
+  overflow: auto;
+}
+
+.state-stream__states * {
+  font-family: monospace;
+}
