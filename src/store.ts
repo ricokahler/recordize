@@ -1,5 +1,4 @@
 import * as Immutable from 'immutable';
-import { merge, isEqual } from 'lodash';
 import * as React from 'react';
 import * as Rx from 'rxjs';
 
@@ -24,7 +23,9 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
   ) {
     class ComponentClass extends React.Component<Props, State & StoreAdaptedState> {
 
-      storeSubscription: Rx.Subscription | undefined;
+      private _storeSubscription: Rx.Subscription | undefined;
+      private _updateStream = updateStream;
+      stateStream = stateStream;
 
       constructor(props: Props, context?: any) {
         super(props, context);
@@ -32,8 +33,8 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
       }
 
       componentDidMount() {
-        if (!this.storeSubscription) {
-          this.storeSubscription = (stateStream
+        if (!this._storeSubscription) {
+          this._storeSubscription = (stateStream
             .subscribe(store => {
               const stateToSet = adapter.get(store, this.props);
               this.setState(previousState => ({
@@ -46,8 +47,8 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
       }
 
       componentWillUnmount() {
-        if (this.storeSubscription) {
-          this.storeSubscription.unsubscribe();
+        if (this._storeSubscription) {
+          this._storeSubscription.unsubscribe();
         }
       }
 
