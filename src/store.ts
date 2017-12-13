@@ -5,6 +5,7 @@ import * as Rx from 'rxjs';
 interface Adapter<Store, Props = {}, StoreAdaptedState = {}> {
   get: (store: Store, props?: Props) => StoreAdaptedState,
   set: (store: Store, value?: StoreAdaptedState, props?: Props) => Store,
+  shouldUpdate?: (previousStore: Store, newStore: Store) => boolean,
 }
 
 export function createStore<Store extends Immutable.Record<any>>(initialStore: Store) {
@@ -16,7 +17,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     const state = update(store);
     currentState = state;
     return state;
-  }, initialStore).share();
+  }, initialStore).share().distinctUntilChanged();
 
   function connect<Props = {}, State = {}, StoreAdaptedState = {}>(
     adapter: Adapter<Store, Props, StoreAdaptedState>
