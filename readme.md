@@ -10,108 +10,228 @@ Redux is cool and all but there's a bit too much indirection. At the end of the 
 
 Well that's were Recordize comes in. Recodize is an even simpler state management library that does everything Redux can (or is planned to meet the needs of Redux users soon).
 
-# Example
+# [Todo Example](./examples/todos/)
 
 ```tsx
+import * as React from 'react';
 import * as Record from 'recordize';
+import * as Immutable from 'immutable';
+import * as uuid from 'uuid/v4';
 
-// In order to create the store, you must first create a Record definition
-// pass in the default properties for the record extend the class the `define` function returns.
-class SomeRecord extends Record.define({
-  someProperty: 'some value',
-  someOtherProperty: 'some other value',
-  count: 0,
-  name: 'world',
+class TodoRecord extends Record.define({
+  id: '',
+  name: '',
+  completed: false,
+  position: 0,
+}) { }
+
+const memo = new WeakMap();
+class AppRecord extends Record.define({
+  todos: Immutable.Map(),
+  visibilityFilter: 'All',
 }) {
-  // you can have computed properties too
-  get computedProperty() {
-    return this.someProperty + this.someOtherProperty;
+  get todoArray() {
+    if (memo.has(this)) {
+      return memo.get(this);
+    }
+    const value = (this.todos
+      .valueSeq()
+      .filter(todo => {
+        if (this.visibilityFilter === 'Active') {
+          return !todo.completed;
+        } else if (this.visibilityFilter === 'Completed') {
+          return todo.completed;
+        }
+        return true;
+      })
+      .sortBy(todo => todo.position)
+      .toArray()
+    );
+    memo.set(this, value);
+    return value;
+  }
+
+  get itemsLeft() {
+    return this.todos.valueSeq().filter(todo => !todo.completed).count();
+  }
+
+  get completedItemsCount() {
+    return this.todos.valueSeq().filter(todo => todo.completed).count();
   }
 }
 
-// after you define the record, you can make it the instance of the store
-const Store = Record.createStore(new SomeRecord());
+const store = Record.createStore(new AppRecord());
 
-interface SomeComponentProps { }
-interface SomeComponentState { }
-
-// then you can just create components by "connecting" them
-class SomeComponent extends Store.connect({
-  // create a mapping between properties and the store
-  // these properties will go directly on `this.state`
-  count: {
-    get: store => store.count,
-    set: (store, value) => store.set('count', value),
+let i = 0;
+class NewTodo extends store.connect({
+  get: () => ({ newTodo: '' }),
+  set: (store, { newTodo }) => {
+    const id = uuid();
+    return store.update('todos', todos => todos.set(id, new TodoRecord({
+      id,
+      name: newTodo,
+      position: i++
+    })));
   }
-})<SomeComponentProps, SomeComponentState> {
+}) {
 
-  get defaultState() {
-    return {};
+  inputRef = document.createElement('input'); // create element so its never undefined
+  handleInputRef = ref => this.inputRef = ref;
+
+  handleSubmit = e => {
+    e.preventDefault();
+    this.setStore(previousState => ({
+      ...previousState,
+      newTodo: this.inputRef.value,
+    }));
+    this.inputRef.value = '';
   }
 
   render() {
-    return <div>
-      {/* the mapped properties get placed on `this.state` so it's natural to use */}
-      <h1>you clicked: {this.state.count} time(s)!</h1>
-      <button onClick={() => {
-        // this.sendUpdate is analogous to this.setState expect it sends it off to the global store
-        this.sendUpdate(previousState => ({
-          ...previousState,
-          count: previousState.count + 1
-        }))
-      }}>click here</button>
+    return <form className="new-todo" onSubmit={this.handleSubmit}>
+      <input type="text" placeholder="What needs to be done?" ref={this.handleInputRef} />
+    </form>
+  }
+}
+
+class Todo extends store.connect({
+  get: (store, { id }) => {
+    const todo = store.todos.get(id) || new TodoRecord();
+    return {
+      name: todo.name,
+      completed: todo.completed,
+      deleted: false,
+    }
+  },
+  set: (store, { name, completed, deleted }, { id }) => {
+    if (deleted) {
+      return store.update('todos', todos => todos.delete(id));
+    }
+    return store.update('todos', todos =>
+      todos.update(id, todo =>
+        todo.set('name', name).set('completed', completed)
+      )
+    );
+  }
+}) {
+
+  constructor(...params) {
+    super(...params);
+    this.inputId = `checkbox-${uuid()}`;
+  }
+
+  handleDelete = () => {
+    this.setStore(previousStore => ({
+      ...previousStore,
+      deleted: true,
+    }))
+  }
+
+  render() {
+    return <div className="todo">
+      <input
+        id={this.inputId}
+        className="todo--checkbox"
+        type="checkbox"
+        checked={this.state.completed} onChange={e => {
+          this.setStore(previousStore => ({
+            ...previousStore,
+            completed: !previousStore.completed,
+          }))
+        }} />
+      <label className="todo--label" htmlFor={this.inputId}>{this.state.name}</label>
+      <button
+        onClick={this.handleDelete}
+        className="todo--delete"
+      >delete</button>
     </div>
   }
 }
 
-interface NameComponentProps { }
-interface NameComponentState { }
-
-class NameComponent extends Store.connect({
-  name: {
-    get: store => store.name,
-    set: (store, value) => store.set('name', value)
-  }
-})<NameComponentProps, NameComponentState> {
-
-  get defaultState() {
-    return {};
-  }
-
+class TodoList extends store.connect({
+  get: store => ({
+    todosIds: store.todoArray.map(todo => todo.id),
+  }),
+  set: store => store,
+}) {
   render() {
-    return <div>
-      <h1>Hello, {this.state.name}!</h1>
-      <input type="text" defaultValue={this.state.name} onInput={e => {
-        this.sendUpdate(previousState => ({
-          ...previousState,
-          name: e.currentTarget.value
-        }));
-      }} />
+    return <div className="todo-list">
+      {this.state.todosIds.map(id => <Todo key={id} id={id} />)}
     </div>
   }
 }
 
-function App() {
-  return <div>
-    <NameComponent />
-    <NameComponent />
-    <SomeComponent />
-  </div>
+class VisibilityFilter extends store.connect({
+  get: store => ({
+    visibilityFilter: store.visibilityFilter,
+  }),
+  set: (store, { visibilityFilter }) => store.set('visibilityFilter', visibilityFilter),
+}) {
+
+  handleClick(filter) {
+    this.setStore(previousStore => ({
+      ...previousStore,
+      visibilityFilter: filter,
+    }));
+  }
+
+  render() {
+    return <div className="visibility-filter">
+      {['All', 'Active', 'Completed'].map((filter, key) => <button
+        className={`visibility-filter__button${/*if*/ this.state.visibilityFilter === filter
+          ? ' visibility-filter__button--active'
+          : ''
+          }`}
+        key={key}
+        onClick={() => this.handleClick(filter)}
+      >{filter}</button>)}
+    </div>
+  }
 }
 
-// to use the connected component, just place in a react dom. No need for a provider
-ReactDOM.render(<App />, document.querySelector('#app'));
+class App extends store.connect({
+  get: store => ({
+    itemsLeft: store.itemsLeft,
+    completedItemsCount: store.completedItemsCount,
+  }),
+  set: store => store,
+}) {
 
-// you can also hook into the update stream
-Store.stateStream
-  .map(store => store.count)
-  .distinctUntilChanged()
-  .debounceTime(1000)
-  .subscribe(newCount => {
-    // whenever there is a change to the model,
-    // you can send of a network request or whatever you like
-    fetch(/*...*/)
-  });
+  handleClearCompleted = () => {
+    this.setGlobalStore(store => {
+      const completedTodos = (store.todos
+        .valueSeq()
+        .filter(todo => todo.completed)
+        .map(todo => todo.id)
+      );
+      return store.update('todos', todos => todos.deleteAll(completedTodos));
+    });
+  }
+
+  render() {
+    return <div className="todo-app">
+      <NewTodo />
+      <TodoList />
+      <div className="footer">
+        <span>{this.state.itemsLeft} items left</span>
+        <VisibilityFilter />
+        <button
+          onClick={this.handleClearCompleted}
+          className={`clear-completed${/*if*/ this.state.completedItemsCount > 0
+            ? ''
+            : ' clear-completed--hidden'
+            }`}
+        >Clear completed</button>
+      </div>
+    </div>;
+  }
+}
+
+store.stateStream.subscribe(state => {
+  console.log('new state', state.toJS());
+})
+
+export default App;
 ```
 
 ![screenshot](./screenshot.png)

@@ -94,7 +94,9 @@ class Todo extends store.connect({
     }
     return store.update('todos', todos =>
       todos.update(id, todo =>
-        todo.set('name', name).set('completed', completed)))
+        todo.set('name', name).set('completed', completed)
+      )
+    );
   }
 }) {
 
@@ -161,7 +163,7 @@ class VisibilityFilter extends store.connect({
   render() {
     return <div className="visibility-filter">
       {['All', 'Active', 'Completed'].map((filter, key) => <button
-        className={`visibility-filter__button${/*if*/ this.state.visibilityFilter.toString() === filter.toString()
+        className={`visibility-filter__button${/*if*/ this.state.visibilityFilter === filter
           ? ' visibility-filter__button--active'
           : ''
           }`}
@@ -171,7 +173,6 @@ class VisibilityFilter extends store.connect({
     </div>
   }
 }
-
 
 class App extends store.connect({
   get: store => ({
@@ -193,23 +194,21 @@ class App extends store.connect({
   }
 
   render() {
-    return (
-      <div className="todo-app">
-        <NewTodo />
-        <TodoList />
-        <div className="footer">
-          <span>{this.state.itemsLeft} items left</span>
-          <VisibilityFilter />
-          <button
-            onClick={this.handleClearCompleted}
-            className={`clear-completed${/*if*/ this.state.completedItemsCount > 0
-              ? ''
-              : ' clear-completed--hidden'
-              }`}
-          >Clear completed</button>
-        </div>
+    return <div className="todo-app">
+      <NewTodo />
+      <TodoList />
+      <div className="footer">
+        <span>{this.state.itemsLeft} items left</span>
+        <VisibilityFilter />
+        <button
+          onClick={this.handleClearCompleted}
+          className={`clear-completed${/*if*/ this.state.completedItemsCount > 0
+            ? ''
+            : ' clear-completed--hidden'
+            }`}
+        >Clear completed</button>
       </div>
-    );
+    </div>;
   }
 }
 
