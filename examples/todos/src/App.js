@@ -212,8 +212,4 @@ class App extends store.connect({
   }
 }
 
-store.stateStream.subscribe(state => {
-  console.log('new state', state.toJS());
-})
-
 export default App;
