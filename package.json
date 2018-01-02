@@ -1,12 +1,13 @@
 {
   "name": "recordize",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A simple state management library revolving around immutable records",
   "main": "dist/recordize.js",
   "typings": "src/index.ts",
   "scripts": {
     "test": "./node_modules/.bin/mocha --require ts-node/register --recursive ./test/**/*",
-    "build": "./node_modules/.bin/webpack -p"
+    "build": "./node_modules/.bin/webpack -p",
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
