@@ -134,8 +134,9 @@ class Todo extends store.connect({
 }
 
 class TodoList extends store.connect({
-  get: store => ({
-    todosIds: store.todoArray.map(todo => todo.id),
+  select: store => store.todoArray,
+  get: todoArray => ({
+    todosIds: todoArray.map(todo => todo.id),
   }),
   set: store => store,
 }) {

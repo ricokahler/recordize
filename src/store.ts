@@ -2,10 +2,10 @@ import * as Immutable from 'immutable';
 import * as React from 'react';
 
 interface ConnectionOptions<Store, Selection, Props = {}, StateFromStore = {}, StateFromComponent = {}> {
-  select?: (store: Store) => Selection,
-  deselect?: (selection: Selection) => Store,
   get: (selection: Selection, props?: Props) => StateFromStore,
   set: (selection: Selection, value?: StateFromStore, props?: Props) => Selection,
+  select?: (store: Store) => Selection,
+  deselect?: (selection: Selection) => Store,
   initialComponentState?: StateFromComponent,
 }
 
