@@ -4,32 +4,35 @@ export function define<T>(recordDefault: T) {
   const BaseRecordClass: new (t?: Partial<T>) => Immutable.Record<T> = Immutable.Record(recordDefault);
   const cache = new Map<string, WeakMap<any, any>>();
   class RecordClass extends BaseRecordClass {
-    getOrCalculate<V>(name: string, dependencies: any[], supplier: () => V) {
+    getOrCalculate<V>(name: string, a: any[] | (() => V), b?: () => V) {
+      const dependencies = /*if*/ Array.isArray(a) ? a : [this];
+      const calculate = /*if*/ typeof b === 'function' ? b : a;
+      if (Array.isArray(calculate)) {
+        throw new Error(`Did not pass a 'calculate' function to 'getOrCalculate'.`);
+      }
+
       const maybeValue = dependencies.reduce((acc, dependency) => {
         const memo = acc || new WeakMap();
         return memo.get(dependency);
       }, cache.get(name)) as V | undefined;
 
       if (maybeValue !== undefined) { return maybeValue; }
-      const value = supplier();
 
-      let a = cache.get(name) || new WeakMap();
-      let b = [];
+      let map = cache.get(name) || new WeakMap();
+      const mapTuples = [];
       for (let dependency of dependencies) {
-        const m = a.get(dependency) || new WeakMap();
-        b.push([m, dependency]);
-        a = m;
+        const m = map.get(dependency) || new WeakMap();
+        mapTuples.push([m, dependency]);
+        map = m;
       }
 
-      let v = value;
-      for (let [map, dependency] of b.reverse()) {
+      const value = calculate();
+      let v = value as any;
+      for (let [map, dependency] of mapTuples.reverse()) {
         map.set(dependency, v);
         v = map;
       }
-      // console.log(b);
-
-      cache.set(name, v as any);
-
+      cache.set(name, v);
       return value;
     }
   }

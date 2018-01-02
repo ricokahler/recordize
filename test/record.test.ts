@@ -7,6 +7,7 @@ describe('Record', function () {
     function () {
 
       let callCount = 0;
+      let simpleCallCount = 0;
 
       class A extends Record.define({
         a: 5,
@@ -23,6 +24,13 @@ describe('Record', function () {
           return this.getOrCalculate('calculatedProperty', [a, b, this], () => {
             callCount += 1;
             return this.c + a.a + b.b;
+          });
+        }
+
+        get simpleCalculatedProperty() {
+          return this.getOrCalculate('simple', () => {
+            simpleCallCount += 1;
+            return this.c + 3;
           });
         }
       }
@@ -46,6 +54,11 @@ describe('Record', function () {
       expect(result3).to.be.equal(result4);
       expect(callCount).to.be.equal(2);
 
+      c.simpleCalculatedProperty;
+      c.simpleCalculatedProperty;
+      const simpleResult = c.simpleCalculatedProperty;
+      expect(simpleResult).to.be.equal(c.c + 3);
+      expect(simpleCallCount).to.be.equal(1);
     }
   );
 });
