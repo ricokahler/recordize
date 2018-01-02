@@ -9,6 +9,7 @@
       "es2017"
     ],
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "downlevelIteration": true
   }
 }

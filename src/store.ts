@@ -1,51 +1,88 @@
 import * as Immutable from 'immutable';
 import * as React from 'react';
 
-interface Adapter<Store, Props = {}, StoreAdaptedState = {}> {
-  get: (store: Store, props?: Props) => StoreAdaptedState,
-  set: (store: Store, value?: StoreAdaptedState, props?: Props) => Store,
-  shouldUpdate?: (previousStore: Store, newStore: Store) => boolean,
+interface ConnectionOptions<Store, Selection, Props = {}, Adapter = {}> {
+  select?: (store: Store) => Selection,
+  deselect?: (selection: Selection) => Store,
+  get: (selection: Selection, props?: Props) => Adapter,
+  set: (selection: Selection, value?: Adapter, props?: Props) => Selection,
+}
+
+interface ComponentGroup<Store, Selection> {
+  selector: (store: Store) => Selection,
+  components: Map<React.Component<any, any>, ConnectionOptions<Store, Selection, any, any>>,
 }
 
 export function createStore<Store extends Immutable.Record<any>>(initialStore: Store) {
   let currentState = initialStore;
+  const componentGroups = new Map<any, ComponentGroup<Store, any>>();
 
   function sendUpdate(update: (previousStore: Store) => Store) {
-    currentState = update(currentState);
-    connectedComponents.forEach((adapter, component) => {
-      const stateToSet = adapter.get(currentState, component.props);
-      component.setState((previousState: any) => ({
-        ...(previousState as any),
-        ...(stateToSet as any),
-      }));
-    });
+    const previousState = currentState
+    currentState = update(previousState);
+
+    for (let [selection, componentGroup] of componentGroups) {
+      const previousSelection = componentGroup.selector(previousState);
+      const newSelection = componentGroup.selector(currentState);
+      // early return immutable optimization
+      if (previousSelection !== selection) { continue; }
+
+      // call component setState if no early return
+      for (let [component, connectionOptions] of componentGroup.components) {
+        const adaptedState = connectionOptions.get(newSelection, component.props);
+        component.setState((previousState: any) => ({
+          ...previousState,
+          ...adaptedState,
+        }));
+      }
+
+      // update selection
+      componentGroups.delete(selection);
+      componentGroups.set(newSelection, componentGroup);
+    }
   }
 
-  const connectedComponents = new Map<React.Component<any, any>, Adapter<Store, any, any>>();
-
-  function connect<Props = {}, State = {}, StoreAdaptedState = {}>(
-    adapter: Adapter<Store, Props, StoreAdaptedState>
+  function connect<Selection, Props = {}, State = {}, StoreAdaptedState = {}>(
+    connectionOptions: ConnectionOptions<Store, Selection, Props, StoreAdaptedState>
   ) {
     class ComponentClass extends React.Component<Props, State & StoreAdaptedState> {
 
       constructor(props: Props, context?: any) {
         super(props, context);
-        this.state = adapter.get(currentState, this.props) as any as Readonly<State & StoreAdaptedState>;
+        const select = connectionOptions.select || ((store: Store) => store as any);
+        const selection = select(currentState);
+        this.state = connectionOptions.get(selection, this.props) as any as Readonly<State & StoreAdaptedState>;
       }
 
       componentDidMount() {
-        connectedComponents.set(this, adapter);
+        const select = connectionOptions.select || ((store: Store) => store as any);
+        const selection = select(currentState);
+        const componentGroup = componentGroups.get(selection) || {
+          selector: connectionOptions.select || ((store: Store) => store as any),
+          components: new Map<React.Component<any, any>, ConnectionOptions<Store, any, any, any>>(),
+        };
+        componentGroup.components.set(this, connectionOptions);
+        componentGroups.set(selection, componentGroup);
       }
 
       componentWillUnmount() {
-        connectedComponents.delete(this);
+        const select = connectionOptions.select || ((store: Store) => store as any);
+        const selection = select(currentState);
+        const componentGroup = componentGroups.get(selection);
+        if (!componentGroup) { return; }
+        componentGroup.components.delete(this);
       }
 
       setStore(updateAdaptedState: (previousState: StoreAdaptedState) => StoreAdaptedState) {
         const update = (previousStore: Store) => {
-          const adaptedStoreState = adapter.get(previousStore, this.props);
+          const select = connectionOptions.select || ((store: Store) => store as any);
+          const deselect = connectionOptions.deselect || ((selection: any) => selection as Store);
+
+          const selection = select(previousStore);
+          const adaptedStoreState = connectionOptions.get(selection, this.props);
           const updatedStoreState = updateAdaptedState(adaptedStoreState);
-          const newStore = adapter.set(previousStore, updatedStoreState, this.props);
+          const newSelection = connectionOptions.set(selection, updatedStoreState, this.props);
+          const newStore = deselect(newSelection);
           return newStore;
         };
         sendUpdate(update);
