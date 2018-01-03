@@ -37,9 +37,15 @@ describe('Store', function () {
       StateFromComponent
     `,
     function () {
+
+      class SomeNestedRecord extends Record.define({
+        someNestedProp: '',
+      }) { }
+
       class SomeRecord extends Record.define({
         foo: '',
         bar: 0,
+        someNestedRecord: new SomeNestedRecord(),
       }) { }
 
       const store = Record.createStore(new SomeRecord());
@@ -85,7 +91,7 @@ describe('Store', function () {
 
       class SomeOtherComponent extends store.connect({
         get: store => ({
-          foor: store.foo,
+          foo: store.foo,
           bar: store.bar,
         }),
         set: (store, value) => (store
@@ -107,6 +113,28 @@ describe('Store', function () {
           return <div></div>;
         }
       }
+
+      class SomeComponentWithSelection extends store.connect({
+        // TODO: shouldn't need `: SomeRecord` assertion here. probably a typescript bug
+        select: (store: SomeRecord) => store.someNestedRecord,
+        deselect: (store, someRecord) => store.set('someNestedRecord', someRecord),
+        get: someRecord => ({
+          someProp: someRecord.someNestedProp
+        }),
+        set: (someRecord, value) => someRecord,
+        propTypes: types => ({
+          someRequiredString: types.string,
+        }),
+      }) {
+        render() {
+          this.props.someRequiredString;
+          return <div></div>;
+        }
+      }
+
+      const someComponentWithSelection = <SomeComponentWithSelection
+        someRequiredString="required"
+      />;
     },
   );
 });

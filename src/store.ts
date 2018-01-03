@@ -15,11 +15,11 @@ interface PropTypes {
   typeof: <R>(typeToQuery: R) => PropType<R>
 }
 
-interface ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection = Store> {
+interface ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection> {
+  select?: (store: Store) => Selection,
+  deselect?: (store: Store, selection: Selection) => Store,
   get: (selection: Selection, props?: Props) => StateFromStore,
   set: (selection: Selection, value?: any, props?: Props) => Selection,
-  select?: (store: Store) => Selection,
-  deselect?: (selection: Selection) => Store,
   initialState?: StateFromComponent,
   propTypes?: (types: PropTypes) => V<Props>,
   propExample?: Props,
@@ -59,7 +59,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     }
   }
 
-  function connect<Props, StateFromComponent, StateFromStore, Selection = Store>(
+  function connect<StateFromStore, Props, StateFromComponent, Selection = Store>(
     connectionOptions: ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection>
   ) {
     class ComponentClass extends React.Component<Props, StateFromComponent & StateFromStore> {
@@ -102,7 +102,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
           const adaptedStoreState = connectionOptions.get(selection, this.props);
           const updatedStoreState = updateAdaptedState(adaptedStoreState);
           const newSelection = connectionOptions.set(selection, updatedStoreState, this.props);
-          const newStore = deselect(newSelection);
+          const newStore = deselect(previousStore, newSelection);
           return newStore;
         };
         sendUpdate(update);
