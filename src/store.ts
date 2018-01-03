@@ -1,17 +1,33 @@
 import * as Immutable from 'immutable';
 import * as React from 'react';
 
-interface ConnectionOptions<Store, Selection, Props = {}, StateFromStore = {}, StateFromComponent = {}> {
+type Optional<T> = T | undefined;
+interface PropType<T> { isOptional: PropType<Optional<T>> }
+type V<Props> = {[K in keyof Props]: PropType<Props[K]>};
+interface PropTypes {
+  string: PropType<string>,
+  number: PropType<number>,
+  boolean: PropType<boolean>,
+  // ...
+  // object, array, symbol, etc...
+  // ...
+  shape: <R>(definer: (types: PropTypes) => V<R>) => PropType<R>,
+  typeof: <R>(typeToQuery: R) => PropType<R>
+}
+
+interface ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection = Store> {
   get: (selection: Selection, props?: Props) => StateFromStore,
-  set: (selection: Selection, value?: StateFromStore, props?: Props) => Selection,
+  set: (selection: Selection, value?: any, props?: Props) => Selection,
   select?: (store: Store) => Selection,
   deselect?: (selection: Selection) => Store,
-  initialComponentState?: StateFromComponent,
+  initialState?: StateFromComponent,
+  propTypes?: (types: PropTypes) => V<Props>,
+  propExample?: Props,
 }
 
 interface ComponentGroup<Store, Selection> {
   selector: (store: Store) => Selection,
-  components: Map<React.Component<any, any>, ConnectionOptions<Store, Selection, any, any>>,
+  components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>,
 }
 
 export function createStore<Store extends Immutable.Record<any>>(initialStore: Store) {
@@ -43,8 +59,8 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     }
   }
 
-  function connect<Selection, Props = {}, StateFromComponent = {}, StateFromStore = {}>(
-    connectionOptions: ConnectionOptions<Store, Selection, Props, StateFromStore, StateFromComponent>
+  function connect<Props, StateFromComponent, StateFromStore, Selection = Store>(
+    connectionOptions: ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection>
   ) {
     class ComponentClass extends React.Component<Props, StateFromComponent & StateFromStore> {
 
@@ -54,7 +70,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         const selection = select(currentState);
         this.state = {
           ...(connectionOptions.get(selection, this.props) as any),
-          ...(connectionOptions.initialComponentState || {}),
+          ...(connectionOptions.initialState || {}),
         };
       }
 
@@ -63,7 +79,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         const selection = select(currentState);
         const componentGroup = componentGroups.get(selection) || {
           selector: connectionOptions.select || ((store: Store) => store as any),
-          components: new Map<React.Component<any, any>, ConnectionOptions<Store, any, any, any>>(),
+          components: new Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>(),
         };
         componentGroup.components.set(this, connectionOptions);
         componentGroups.set(selection, componentGroup);
