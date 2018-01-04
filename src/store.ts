@@ -1,18 +1,26 @@
 import * as Immutable from 'immutable';
 import * as React from 'react';
 
+let a: object = {};
+
 type Optional<T> = T | undefined;
-interface PropType<T> { isOptional: PropType<Optional<T>> }
-type V<Props> = {[K in keyof Props]: PropType<Props[K]>};
-interface PropTypes {
-  string: PropType<string>,
-  number: PropType<number>,
-  boolean: PropType<boolean>,
-  // ...
-  // object, array, symbol, etc...
-  // ...
-  shape: <R>(definer: (types: PropTypes) => V<R>) => PropType<R>,
-  typeof: <R>(typeToQuery: R) => PropType<R>
+interface TypeCapture<T> { }
+type V<Props> = {[K in keyof Props]: TypeCapture<Props[K]>};
+interface TypeDefiner {
+  any: TypeCapture<any>,
+  array: TypeCapture<Array<any>>,
+  bool: TypeCapture<boolean>,
+  func: TypeCapture<Function>,
+  number: TypeCapture<number>,
+  object: TypeCapture<object>,
+  string: TypeCapture<string>,
+  symbol: TypeCapture<symbol>,
+  node: TypeCapture<any>, // TODO: better typings
+  element: TypeCapture<any>, // TODO
+  instanceOf: <R>(constructor: new (...params: any[]) => R) => TypeCapture<R>,
+  // oneOf: <A, B, C, D, E>(typeToQuery: V<A>) => PropType<A>,
+  shape: <R>(definer: (types: TypeDefiner) => V<R>) => TypeCapture<R>,
+  typeOf: <R>(typeToQuery: R) => TypeCapture<R>,
 }
 
 interface ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection> {
@@ -21,7 +29,8 @@ interface ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Se
   get: (selection: Selection, props?: Props) => StateFromStore,
   set: (selection: Selection, value?: any, props?: Props) => Selection,
   initialState?: StateFromComponent,
-  propTypes?: (types: PropTypes) => V<Props>,
+  propTypes?: (types: TypeDefiner) => V<Props>,
+  // optionalPropTypes?: (types: TypeDefiner) => V<Props>
   propExample?: Props,
 }
 
