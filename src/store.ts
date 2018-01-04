@@ -9,6 +9,7 @@ type V<Props> = {[K in keyof Props]: TypeCapture<Props[K]>};
 interface TypeDefiner {
   any: TypeCapture<any>,
   array: TypeCapture<Array<any>>,
+  arrayOf: <R>(typeCapture: TypeCapture<R>) => TypeCapture<R[]>,
   bool: TypeCapture<boolean>,
   func: TypeCapture<Function>,
   number: TypeCapture<number>,
@@ -16,27 +17,29 @@ interface TypeDefiner {
   string: TypeCapture<string>,
   symbol: TypeCapture<symbol>,
   node: TypeCapture<any>, // TODO: better typings
-  element: TypeCapture<any>, // TODO
+  element: TypeCapture<any>, // TODO: better typings
   instanceOf: <R>(constructor: new (...params: any[]) => R) => TypeCapture<R>,
   // oneOf: <A, B, C, D, E>(typeToQuery: V<A>) => PropType<A>,
-  shape: <R>(definer: (types: TypeDefiner) => V<R>) => TypeCapture<R>,
+  shape: <R>(v: V<R>) => TypeCapture<R>, // TODO: allow for optional types here
   typeOf: <R>(typeToQuery: R) => TypeCapture<R>,
 }
 
-interface ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection> {
+type ReactProps<T> = Readonly<{ children?: React.ReactNode; }> & Readonly<T>;
+
+interface ConnectionOptions<Store, StateFromStore, Props, OptionalProps, StateFromComponent, Selection> {
   select?: (store: Store) => Selection,
   deselect?: (store: Store, selection: Selection) => Store,
-  get: (selection: Selection, props?: Props) => StateFromStore,
-  set: (selection: Selection, value?: any, props?: Props) => Selection,
+  get: (selection: Selection, props: ReactProps<Props & Partial<OptionalProps>>) => StateFromStore,
+  set: (selection: Selection, value: any, props: ReactProps<Props & Partial<OptionalProps>>) => Selection,
   initialState?: StateFromComponent,
   propTypes?: (types: TypeDefiner) => V<Props>,
-  // optionalPropTypes?: (types: TypeDefiner) => V<Props>
-  propExample?: Props,
+  optionalPropTypes?: (types: TypeDefiner) => V<OptionalProps>
+  propsExample?: Props,
 }
 
 interface ComponentGroup<Store, Selection> {
   selector: (store: Store) => Selection,
-  components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>,
+  components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any, any>>,
 }
 
 export function createStore<Store extends Immutable.Record<any>>(initialStore: Store) {
@@ -68,15 +71,16 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     }
   }
 
-  function connect<StateFromStore, Props, StateFromComponent, Selection = Store>(
-    connectionOptions: ConnectionOptions<Store, StateFromStore, Props, StateFromComponent, Selection>
+  function connect<StateFromStore, Props, OptionalProps, StateFromComponent, Selection = Store>(
+    connectionOptions: ConnectionOptions<Store, StateFromStore, Props, OptionalProps, StateFromComponent, Selection>
   ) {
-    class ComponentClass extends React.Component<Props, StateFromComponent & StateFromStore> {
+    class ComponentClass extends React.Component<Props & Partial<OptionalProps>, StateFromComponent & StateFromStore> {
 
-      constructor(props: Props, context?: any) {
+      constructor(props: Props & Partial<OptionalProps>, context?: any) {
         super(props, context);
         const select = connectionOptions.select || ((store: Store) => store as any);
         const selection = select(currentState);
+        const thisProps = this.props;
         this.state = {
           ...(connectionOptions.get(selection, this.props) as any),
           ...(connectionOptions.initialState || {}),
@@ -88,7 +92,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         const selection = select(currentState);
         const componentGroup = componentGroups.get(selection) || {
           selector: connectionOptions.select || ((store: Store) => store as any),
-          components: new Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>(),
+          components: new Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any, any>>(),
         };
         componentGroup.components.set(this, connectionOptions);
         componentGroups.set(selection, componentGroup);
