@@ -21,11 +21,12 @@ describe('Store', function () {
 
   it(`updates the 'selection' in the map of componentGroups`);
 
-  /**
-   * Note: this test is solely for typings. The purpose is check to see if the typescript compiler
+  /*
+   * Note: theses tesst are solely for typings. The purpose is check to see if the typescript compiler
    * will accept the types without throwing any errors similar to how `DefinitelyTyped` includes
    * tests.
    */
+
   it(`defines the correct mapped types when using 'propTypes'`, function () {
     class FooRecord extends Record.define({
       foo: '',
@@ -118,11 +119,6 @@ describe('Store', function () {
     }
   });
 
-  /**
-   * Note: this test is solely for typings. The purpose is check to see if the typescript compiler
-   * will accept the types without throwing any errors similar to how `DefinitelyTyped` includes
-   * tests.
-   */
   it(`defines the correct mapped type when using 'optionalPropTypes'`, function () {
     class FooRecord extends Record.define({
       foo: '',
@@ -157,11 +153,6 @@ describe('Store', function () {
     const leaveOutOptional = <Component requireString="something" />;
   });
 
-  /**
-   * Note: this test is solely for typings. The purpose is check to see if the typescript compiler
-   * will accept the types without throwing any errors similar to how `DefinitelyTyped` includes
-   * tests.
-   */
   it(`defines the correct type when using 'propExample'`, function () {
     class FooRecord extends Record.define({
       foo: '',
@@ -198,11 +189,66 @@ describe('Store', function () {
     const leaveOutOptional = <Component requireString="something" />;
   });
 
-  /**
-   * Note: this test is solely for typings. The purpose is check to see if the typescript compiler
-   * will accept the types without throwing any errors similar to how `DefinitelyTyped` includes
-   * tests.
-   */
+  it(`infers the correct type of 'StateFromStore`, function () {
+    class FooRecord extends Record.define({
+      foo: '',
+      bar: 0,
+    }) { }
+
+    const store = Record.createStore(new FooRecord());
+
+    class Component extends store.connect({
+      get: (store) => ({
+        fooStateFromStore: store.foo,
+        barStateFromStore: store.bar,
+      }),
+      // TODO: value is of type `any` and it could be more specific
+      set: (store, value, props) => (store
+        .set('foo', value.fooStateFromStore)
+        .set('bar', value.barStateFromStore)
+      ),
+    }) {
+      render() {
+        const shouldBeString = this.state.fooStateFromStore;
+        const mustBeString: string = shouldBeString;
+
+        const shouldBeNumber = this.state.barStateFromStore;
+        const mustBeNumber: number = shouldBeNumber;
+        return <div />;
+      }
+    }
+  });
+
+  it(`infers the correct type of 'StateFromStore' when using selector`, function () {
+    class NestedRecord extends Record.define({
+      nestedProp: '',
+    }) { }
+
+    class FooRecord extends Record.define({
+      foo: '',
+      bar: 0,
+      nestedRecord: new NestedRecord(),
+    }) { }
+
+    const store = Record.createStore(new FooRecord());
+
+    class Component extends store.connect({
+      select: store => store.nestedRecord,
+      // TODO: this `nestedRecord` needs to be type asserted for some reason
+      deselect: (store, nestedRecord: NestedRecord) => store.set('nestedRecord', nestedRecord),
+      get: nestedRecord => ({
+        nestedPropFromState: nestedRecord.nestedProp
+      }),
+      set: (nestedRecord, value) => nestedRecord.set('nestedProp', value.nestedPropFromState),
+    }) {
+      render() {
+        const shouldBeString = this.state.nestedPropFromState;
+        const mustBeString: string = shouldBeString;
+        return <div />;
+      }
+    }
+  });
+
   it(`defines the correct type when using 'initialState'`, function () {
     class FooRecord extends Record.define({
       foo: '',
@@ -214,10 +260,22 @@ describe('Store', function () {
     class Component extends store.connect({
       get: store => ({}),
       set: store => store,
+      initialState: {
+        someComponentLevelState: false,
+        someObject: {
+          someNestedState: ''
+        }
+      }
+    }) {
+      render() {
+        const shouldBeBoolean = this.state.someComponentLevelState;
+        const mustBeBoolean: boolean = shouldBeBoolean;
 
-    }) { }
+        const shouldBeString = this.state.someObject.someNestedState;
+        const mustBeString: string = shouldBeString;
+
+        return <div />;
+      }
+    }
   });
-
-  it(`has the correct types for 'Store', 'Selection', and 'StateFromStore'`);
-
 });
