@@ -127,5 +127,5 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     }
     return ComponentClass;
   }
-  return { connect };
+  return { connect, componentGroups };
 }

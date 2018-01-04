@@ -2,10 +2,56 @@ process.env.TS_NODE_TYPE_CHECK = 'true';
 import { expect } from 'chai';
 import { oneLine } from 'common-tags';
 import * as React from 'react';
+import * as ReactDOM from 'react-dom';
+import { JSDOM } from 'jsdom';
+
 import * as Record from '../src';
+import { DeferredPromise } from './util';
+
+const document = (global as any).document || new JSDOM().window.document;
+
+function wait(milliseconds: number) {
+  return new Promise(resolve => setTimeout(() => resolve(), milliseconds));
+}
 
 describe('Store', function () {
-  it(`adds a component to the 'componentGroups' on 'componentDidMount'`);
+  it(`adds a component to the 'componentGroups' on 'componentDidMount'`, async function () {
+    class FooRecord extends Record.define({
+      foo: '',
+      bar: 0,
+    }) { }
+    const firstInstance = new FooRecord();
+    const store = Record.createStore(firstInstance);
+    const mountedComponent = new DeferredPromise();
+
+    class Component extends store.connect({
+      get: store => ({}),
+      set: store => store,
+    }) {
+      componentDidMount() {
+        super.componentDidMount();
+        mountedComponent.resolve();
+      }
+
+      render() {
+        return <div />;
+      }
+    }
+
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+    let componentReference: any;
+    ReactDOM.render(<Component ref={ref => componentReference = ref} />, element);
+
+    await mountedComponent;
+    expect(store.componentGroups.size).to.be.equal(1);
+
+    const [selection, componentGroup] = Array.from(store.componentGroups.entries())[0];
+
+    expect(selection).to.be.equal(firstInstance);
+    expect(componentGroup.components.size).to.be.equal(1);
+    expect(componentGroup.components.keys().next().value).to.be.equal(componentReference);
+  });
 
   it(`removes a component from the 'componentGroups' on 'componentWillUnmount'`);
 
