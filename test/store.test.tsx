@@ -71,8 +71,8 @@ describe('Store', function () {
     }
 
     class ComponentConnectedToBranchA extends store.connect({
-      select: store => store.branchA,
-      deselect: (store, branchA: BranchARecord) => store.set('branchA', branchA),
+      scope: store => store.branchA,
+      descope: (store, branchA: BranchARecord) => store.set('branchA', branchA),
       get: branchA => ({
         fromBranchA: branchA.branchAKey,
       }),
@@ -90,8 +90,8 @@ describe('Store', function () {
     }
 
     class ComponentConnectedToBranchB extends store.connect({
-      select: store => store.branchB,
-      deselect: (store, branchB: BranchBRecord) => store.set('branchB', branchB),
+      scope: store => store.branchB,
+      descope: (store, branchB: BranchBRecord) => store.set('branchB', branchB),
       get: branchB => ({
         fromBranchB: branchB.branchBKey,
       }),
@@ -109,8 +109,8 @@ describe('Store', function () {
     }
 
     class ComponentAlsoConnectedToBranchB extends store.connect({
-      select: store => store.branchB,
-      deselect: (store, branchB: BranchBRecord) => store.set('branchB', branchB),
+      scope: store => store.branchB,
+      descope: (store, branchB: BranchBRecord) => store.set('branchB', branchB),
       get: branchB => ({
         fromBranchB: branchB.branchBKey,
       }),
@@ -128,8 +128,8 @@ describe('Store', function () {
     }
 
     class ComponentConnectedToBranchAAndB extends store.connect({
-      select: store => Immutable.Map({ a: store.branchA, b: store.branchB }),
-      deselect: (store, m: Immutable.Map<string, any>) => (store
+      scope: store => Immutable.Map({ a: store.branchA, b: store.branchB }),
+      descope: (store, m: Immutable.Map<string, any>) => (store
         .set('branchA', m.get('a'))
         .set('branchB', m.get('b'))
       ),
@@ -171,7 +171,7 @@ describe('Store', function () {
     // ensure that there are three groups
     expect(componentGroups.size).to.be.equal(4);
 
-    // ensure that there are two component connected to the group that selected `branchB`
+    // ensure that there are two component connected to the group that scoped `branchB`
     expect(componentGroups.get(firstInstance.branchB.hashCode())!.components.size).to.be.equal(2);
 
     // ensure value equality works
@@ -225,9 +225,9 @@ describe('Store', function () {
 
   it(`sends an update when 'setGlobalStore' is called on a component`);
 
-  it(`updates only the respective components considering 'select'`);
+  it(`updates only the respective components considering 'scope'`);
 
-  it(`updates the 'selection' in the map of componentGroups`);
+  it(`updates the 'scope' in the map of componentGroups`);
 
   /*
    * Note: theses tesst are solely for typings. The purpose is check to see if the typescript compiler
@@ -427,7 +427,7 @@ describe('Store', function () {
     }
   });
 
-  it(`infers the correct type of 'StateFromStore' when using selector`, function () {
+  it(`infers the correct type of 'StateFromStore' when using scope`, function () {
     class NestedRecord extends Record.define({
       nestedProp: '',
     }) { }
@@ -441,9 +441,9 @@ describe('Store', function () {
     const store = Record.createStore(new FooRecord());
 
     class Component extends store.connect({
-      select: store => store.nestedRecord,
+      scope: store => store.nestedRecord,
       // TODO: this `nestedRecord` needs to be type asserted for some reason
-      deselect: (store, nestedRecord: NestedRecord) => store.set('nestedRecord', nestedRecord),
+      descope: (store, nestedRecord: NestedRecord) => store.set('nestedRecord', nestedRecord),
       get: nestedRecord => ({
         nestedPropFromState: nestedRecord.nestedProp
       }),

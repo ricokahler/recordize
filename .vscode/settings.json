@@ -1,6 +1,7 @@
 {
   "cSpell.words": [
     "Recordize",
+    "descope",
     "lookupable"
   ],
   "typescript.tsdk": "node_modules/typescript/lib"
