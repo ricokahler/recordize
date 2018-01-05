@@ -57,7 +57,9 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     const previousState = currentState
     currentState = update(previousState);
 
-    for (let [scopeHash, componentGroup] of componentGroups) {
+    // clone the component groups so that we can delete and add new ones
+    const currentComponentGroups = Array.from(componentGroups.entries());
+    for (let [scopeHash, componentGroup] of currentComponentGroups) {
       const previousScope = componentGroup.scope(previousState);
       const newScope = componentGroup.scope(currentState);
       // early return optimization
@@ -67,13 +69,15 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
       for (let [component, connectionOptions] of componentGroup.components) {
         const adaptedState = connectionOptions.get(newScope, component.props);
         component.setState((previousState: any) => ({
-          ...previousState,
-          ...adaptedState,
+          ...(previousState || {}),
+          ...(adaptedState || {}),
         }));
       }
 
       // update scope
       componentGroup.currentScope = newScope;
+      // it's okay to delete the scopeHash and re-assign it because we cloned the state of the
+      // componentGroups before we made modifications
       componentGroups.delete(scopeHash);
       componentGroups.set(newScope.hashCode(), componentGroup);
     }
@@ -141,8 +145,8 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
 
       setStore(updateAdaptedState: (previousState: StateFromStore) => StateFromStore) {
         const update = (previousStore: Store) => {
-          const getScope = connectionOptions.scope || ((store: Store) => store as any);
-          const setScope = connectionOptions.descope || ((scope: any) => scope as Store);
+          const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
+          const setScope = connectionOptions.descope || ((store: any, scope: any) => scope as Store);
 
           const scope = getScope(previousStore);
           const adaptedStoreState = connectionOptions.get(scope, this.props);
