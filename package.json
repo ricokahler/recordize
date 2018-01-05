@@ -6,7 +6,7 @@
   "typings": "src/index.ts",
   "scripts": {
     "test": "./node_modules/.bin/mocha --require ts-node/register --watch-extensions ts,tsx \"test/**/*.{ts,tsx}\"",
-    "build": "webpack -p",
+    "build": "./node_modules/.bin/webpack -p",
     "prepublish": "npm run build"
   },
   "repository": {
