@@ -461,10 +461,113 @@ describe('Store', function () {
     expect(store.current().baz).to.be.equal('new baz');
   });
 
-  it(`updates only the respective components considering 'scope'`);
+  it(`updates only the respective components considering 'scope'`, async function () {
+
+    class BranchARecord extends Record.define({
+      foo: 'initial foo',
+    }) { }
+
+    class BranchBRecord extends Record.define({
+      bar: 'initial bar',
+    }) { }
+
+    class RootRecord extends Record.define({
+      root: 'initial root',
+      branchA: new BranchARecord(),
+      branchB: new BranchBRecord(),
+    }) { }
+
+    let componentARenderCount = 0;
+    let componentBRenderCount = 0;
+    let rootComponentRenderCount = 0;
+
+    const componentAMounted = new DeferredPromise();
+    const componentBMounted = new DeferredPromise();
+    const rootComponentMounted = new DeferredPromise();
+
+    const store = Record.createStore(new RootRecord());
+
+    class ComponentConnectedToBranchA extends store.connect({
+      scope: store => store.branchA,
+      descope: (store, branchA: BranchARecord) => store.set('branchA', branchA),
+      get: branchA => ({
+        foo: branchA.foo,
+      }),
+      set: (branchA, value) => branchA.set('foo', value.foo),
+    }) {
+      componentDidMount() {
+        super.componentDidMount();
+        componentAMounted.resolve();
+      }
+
+      render() {
+        componentARenderCount += 1;
+        return <div>{this.state.foo}</div>;
+      }
+    }
+
+    class ComponentConnectedToBranchB extends store.connect({
+      scope: store => store.branchB,
+      descope: (store, branchB: BranchBRecord) => store.set('branchB', branchB),
+      get: branchA => ({
+        bar: branchA.bar,
+      }),
+      set: (branchA, value) => branchA.set('bar', value.bar),
+    }) {
+      componentDidMount() {
+        super.componentDidMount();
+        componentBMounted.resolve();
+      }
+
+      render() {
+        componentBRenderCount += 1;
+        return <div>{this.state.bar}</div>;
+      }
+    }
+
+    class ComponentConnectedToRoot extends store.connect({
+      get: store => ({
+        root: store.root
+      }),
+      set: (store, value) => store.set('root', value.root),
+    }) {
+
+      componentDidMount() {
+        super.componentDidMount();
+        rootComponentMounted.resolve();
+      }
+
+      render() {
+        rootComponentRenderCount += 1;
+        return <div>{this.state.root}</div>
+      }
+    }
+
+    const element = document.createElement('div');
+    ReactDOM.render(
+      <div>
+        <ComponentConnectedToBranchA />
+        <ComponentConnectedToBranchB />
+        <ComponentConnectedToRoot />
+      </div>,
+      element
+    );
+
+    expect(componentARenderCount).to.be.equal(1);
+    expect(componentBRenderCount).to.be.equal(1);
+    expect(rootComponentRenderCount).to.be.equal(1);
+
+    store.sendUpdate(store => store.update('branchA', branchA => branchA.set('foo', 'new foo')));
+    store.sendUpdate(store => store.update('branchB', branchB => branchB.set('bar', 'new bar')));
+    store.sendUpdate(store => store.set('root', 'new root'));
+
+    expect(componentARenderCount).to.be.equal(2);
+    expect(componentBRenderCount).to.be.equal(2);
+    expect(rootComponentRenderCount).to.be.equal(4);
+  });
 
   /*
-   * Note: theses tesst are solely for typings. The purpose is check to see if the typescript compiler
+   * Note: theses test are solely for typings. The purpose is check to see if the typescript compiler
    * will accept the types without throwing any errors similar to how `DefinitelyTyped` includes
    * tests.
    */
