@@ -6,7 +6,7 @@ import * as Immutable from 'immutable';
 import * as ReactDOM from 'react-dom';
 import { JSDOM } from 'jsdom';
 
-import * as Record from '../src';
+import * as Record from '../';
 import { DeferredPromise } from './util';
 
 const document = (global as any).document || new JSDOM().window.document;

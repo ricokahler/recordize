@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import * as Record from '../src';
+import * as Record from '../';
 
 describe('Record', function () {
   it(`caches values with 'getOrCalculate'`, function () {
