@@ -3,6 +3,7 @@ import * as Immutable from 'immutable';
 export function define<T>(recordDefault: T) {
   const BaseRecordClass: new (t?: Partial<T>) => Immutable.Record<T> = Immutable.Record(recordDefault);
   const cache = new Map<string, WeakMap<any, any>>();
+  const hashCodeCache = new WeakMap<RecordClass, number>();
   class RecordClass extends BaseRecordClass {
     getOrCalculate<V>(name: string, a: any[] | (() => V), b?: () => V) {
       const dependencies = /*if*/ Array.isArray(a) ? a : [this];
@@ -34,6 +35,15 @@ export function define<T>(recordDefault: T) {
       }
       cache.set(name, v);
       return value;
+    }
+
+    hashCode() {
+      if (hashCodeCache.has(this)) {
+        return hashCodeCache.get(this)!;
+      }
+      const hashCode = super.hashCode();
+      hashCodeCache.set(this, hashCode);
+      return hashCode;
     }
   }
   return RecordClass as new (t?: Partial<T>) => Immutable.Record<T> & Readonly<T> & RecordClass;

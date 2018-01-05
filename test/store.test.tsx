@@ -18,8 +18,14 @@ function wait(milliseconds: number) {
 describe('Store', function () {
   it(`adds a components to the 'componentGroups' on 'componentDidMount'`, async function () {
 
+    let propCallCount = 0;
+
     class BranchARecord extends Record.define({
       branchAKey: 'branch a value',
+      get prop() {
+        propCallCount += 1;
+        return 'test';
+      }
     }) { }
 
     class BranchBRecord extends Record.define({
@@ -172,6 +178,9 @@ describe('Store', function () {
     expect(componentGroups.get(
       Immutable.Map({ a: firstInstance.branchA, b: firstInstance.branchB }).hashCode()
     )).to.not.be.undefined;
+
+    // ensure memoized hashCodes work
+    expect(propCallCount).to.be.equal(1);
 
     // ensure that within, those three groups, all the respective components have been connected
     expect(Array
