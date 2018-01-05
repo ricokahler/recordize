@@ -161,6 +161,9 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
           `);
         }
         componentGroup.components.delete(this);
+        if (componentGroup.components.size === 0) {
+          componentGroups.delete(scopeHashCode);
+        }
       }
 
       setStore(updateAdaptedState: (previousState: StateFromStore) => StateFromStore) {

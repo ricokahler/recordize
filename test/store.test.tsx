@@ -16,7 +16,7 @@ function wait(milliseconds: number) {
 }
 
 describe('Store', function () {
-  it(`adds a components to the 'componentGroups' on 'componentDidMount'`, async function () {
+  it(`mounts and unmounts components correctly`, async function () {
 
     let propCallCount = 0;
 
@@ -45,13 +45,21 @@ describe('Store', function () {
     const branchAComponentMounted = new DeferredPromise();
     const branchBComponentMounted = new DeferredPromise();
     const secondBranchBComponentMounted = new DeferredPromise();;
-    const abComponentMounted = new DeferredPromise();;
+    const abComponentMounted = new DeferredPromise();
+
+    const rootComponentUnmounted = new DeferredPromise();
+    const branchAComponentUnmounted = new DeferredPromise();
+    const branchBComponentUnmounted = new DeferredPromise();
+    const secondBranchBComponentUnmounted = new DeferredPromise();
 
     let rootComponentReference: any;
     let branchAComponentReference: any;
     let branchBComponentReference: any;
     let secondBranchBComponentReference: any;
     let abComponentReference: any;
+
+    let wrapperRef: Wrapper = undefined as any;
+    const capturedWrapperRef = new DeferredPromise();
 
     class ComponentConnectedToRoot extends store.connect({
       get: store => ({
@@ -63,6 +71,11 @@ describe('Store', function () {
       componentDidMount() {
         super.componentDidMount();
         rootComponentMounted.resolve();
+      }
+
+      componentWillUnmount() {
+        super.componentWillUnmount();
+        rootComponentUnmounted.resolve();
       }
 
       render() {
@@ -84,6 +97,11 @@ describe('Store', function () {
         branchAComponentMounted.resolve();
       }
 
+      componentWillUnmount() {
+        super.componentWillUnmount();
+        branchAComponentUnmounted.resolve();
+      }
+
       render() {
         return <div />;
       }
@@ -103,6 +121,11 @@ describe('Store', function () {
         branchBComponentMounted.resolve();
       }
 
+      componentWillUnmount() {
+        super.componentWillUnmount();
+        branchBComponentUnmounted.resolve();
+      }
+
       render() {
         return <div />;
       }
@@ -120,6 +143,11 @@ describe('Store', function () {
       componentDidMount() {
         super.componentDidMount();
         secondBranchBComponentMounted.resolve();
+      }
+
+      componentWillUnmount() {
+        super.componentWillUnmount();
+        secondBranchBComponentUnmounted.resolve();
       }
 
       render() {
@@ -149,16 +177,39 @@ describe('Store', function () {
     const element = document.createElement('div');
     document.body.appendChild(element);
 
-    ReactDOM.render(
-      <div>
-        <ComponentConnectedToRoot ref={ref => { rootComponentReference = ref; }} />
-        <ComponentConnectedToBranchA ref={ref => { branchAComponentReference = ref; }} />
-        <ComponentConnectedToBranchB ref={ref => { branchBComponentReference = ref; }} />
-        <ComponentAlsoConnectedToBranchB ref={ref => { secondBranchBComponentReference = ref; }} />
-        <ComponentConnectedToBranchAAndB ref={ref => { abComponentReference = ref; }} />
-      </div>,
-      element
-    );
+    class Wrapper extends React.Component<{}, { mounted: boolean }> {
+      constructor(props: {}) {
+        super(props);
+        this.state = { mounted: false };
+      }
+
+      render() {
+        return <div>
+          {/*if*/ this.state.mounted
+            ? <div>
+              <ComponentConnectedToRoot ref={ref => { rootComponentReference = ref; }} />
+              <ComponentConnectedToBranchA ref={ref => { branchAComponentReference = ref; }} />
+              <ComponentConnectedToBranchB ref={ref => { branchBComponentReference = ref; }} />
+              <ComponentAlsoConnectedToBranchB ref={ref => { secondBranchBComponentReference = ref; }} />
+              <ComponentConnectedToBranchAAndB ref={ref => { abComponentReference = ref; }} />
+            </div>
+            : <div />
+          }
+          <ComponentConnectedToBranchAAndB ref={ref => { abComponentReference = ref; }} />
+        </div>;
+      }
+    }
+
+    ReactDOM.render(<Wrapper ref={ref => {
+      if (ref) {
+        wrapperRef = ref;
+        capturedWrapperRef.resolve();
+      }
+    }} />, element);
+
+    await capturedWrapperRef;
+
+    wrapperRef.setState(previousState => ({ ...previousState, mounted: true }));
 
     await rootComponentMounted;
     await branchAComponentMounted;
@@ -168,7 +219,7 @@ describe('Store', function () {
 
     const componentGroups = store.componentGroups;
 
-    // ensure that there are three groups
+    // ensure that there are four groups
     expect(componentGroups.size).to.be.equal(4);
 
     // ensure that there are two component connected to the group that scoped `branchB`
@@ -213,9 +264,46 @@ describe('Store', function () {
       .length
     ).to.be.equal(1);
 
-  });
+    wrapperRef.setState(previousState => ({ ...previousState, mounted: false }));
 
-  it(`removes a component from the 'componentGroups' on 'componentWillUnmount'`);
+    await rootComponentUnmounted;
+    await branchAComponentUnmounted;
+    await branchBComponentUnmounted;
+    await secondBranchBComponentUnmounted;
+
+    // everything expect `ComponentConnectedToBranchAAndB` should be unmounted
+    expect(componentGroups.size).to.be.equal(1);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(rootComponentReference))
+      .length
+    ).to.be.equal(0);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(branchAComponentReference))
+      .length
+    ).to.be.equal(0);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(branchBComponentReference))
+      .length
+    ).to.be.equal(0);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(secondBranchBComponentReference))
+      .length
+    ).to.be.equal(0);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(abComponentReference))
+      .length
+    ).to.be.equal(1);
+  });
 
   it(`sets the correct initial state for a component considering the 'currentState'`);
 
