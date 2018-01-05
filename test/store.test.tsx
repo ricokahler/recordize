@@ -305,7 +305,7 @@ describe('Store', function () {
     ).to.be.equal(1);
   });
 
-  it(`sets the correct initial state for a component considering the 'currentState'`);
+  it(`sets the correct initial state for a component considering the 'currentState' and 'initialState'`);
 
   it(`applies the 'initialComponentState' connection option when present`);
 

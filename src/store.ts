@@ -62,19 +62,19 @@ class ModificationTuple<Store, Scope extends Equatable> {
 }
 
 export function createStore<Store extends Immutable.Record<any>>(initialStore: Store) {
-  let currentState = initialStore;
+  let currentStore = initialStore;
   const componentGroups = new Map<number, ComponentGroup<Store, Equatable>>();
 
   function sendUpdate(update: (previousStore: Store) => Store) {
-    const previousState = currentState
-    currentState = update(previousState);
+    const previousStore = currentStore
+    currentStore = update(previousStore);
 
     // create a list of modifications that we'll use after we iterate through the `componentGroups`
     const modifications: Array<ModificationTuple<Store, Equatable>> = [];
 
     for (let [scopeHash, componentGroup] of componentGroups) {
-      const previousScope = componentGroup.scope(previousState);
-      const newScope = componentGroup.scope(currentState);
+      const previousScope = componentGroup.scope(previousStore);
+      const newScope = componentGroup.scope(currentStore);
       // early return optimization
       if (previousScope.equals(newScope)) { continue; }
 
@@ -111,7 +111,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
       constructor(props: Props & Partial<OptionalProps>, context?: any) {
         super(props, context);
         const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
-        const scope = getScope(currentState);
+        const scope = getScope(currentStore);
         const thisProps = this.props;
         this.state = {
           ...(connectionOptions.get(scope, this.props) as any),
@@ -121,7 +121,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
 
       componentDidMount() {
         const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
-        const scope = getScope(currentState);
+        const scope = getScope(currentStore);
         if (typeof scope.hashCode !== 'function') {
           throw new Error(oneLine`
             Object chosen as 'scope' does not have a 'hashCode' function. Ensure the object is
@@ -148,7 +148,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
 
       componentWillUnmount() {
         const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
-        const scope = getScope(currentState);
+        const scope = getScope(currentStore);
         const scopeHashCode = scope.hashCode();
         const componentGroup = componentGroups.get(scopeHashCode);
         if (!componentGroup) { return; }
