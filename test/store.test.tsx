@@ -2,6 +2,7 @@ process.env.TS_NODE_TYPE_CHECK = 'true';
 import { expect } from 'chai';
 import { oneLine } from 'common-tags';
 import * as React from 'react';
+import * as Immutable from 'immutable';
 import * as ReactDOM from 'react-dom';
 import { JSDOM } from 'jsdom';
 
@@ -38,11 +39,13 @@ describe('Store', function () {
     const branchAComponentMounted = new DeferredPromise();
     const branchBComponentMounted = new DeferredPromise();
     const secondBranchBComponentMounted = new DeferredPromise();;
+    const abComponentMounted = new DeferredPromise();;
 
     let rootComponentReference: any;
     let branchAComponentReference: any;
     let branchBComponentReference: any;
     let secondBranchBComponentReference: any;
+    let abComponentReference: any;
 
     class ComponentConnectedToRoot extends store.connect({
       get: store => ({
@@ -118,6 +121,25 @@ describe('Store', function () {
       }
     }
 
+    class ComponentConnectedToBranchAAndB extends store.connect({
+      select: store => Immutable.Map({ a: store.branchA, b: store.branchB }),
+      deselect: (store, m: Immutable.Map<string, any>) => (store
+        .set('branchA', m.get('a'))
+        .set('branchB', m.get('b'))
+      ),
+      get: ab => ({}),
+      set: ab => ab,
+    }) {
+      componentDidMount() {
+        super.componentDidMount();
+        abComponentMounted.resolve();
+      }
+
+      render() {
+        return <div />;
+      }
+    }
+
     const element = document.createElement('div');
     document.body.appendChild(element);
 
@@ -127,6 +149,7 @@ describe('Store', function () {
         <ComponentConnectedToBranchA ref={ref => { branchAComponentReference = ref; }} />
         <ComponentConnectedToBranchB ref={ref => { branchBComponentReference = ref; }} />
         <ComponentAlsoConnectedToBranchB ref={ref => { secondBranchBComponentReference = ref; }} />
+        <ComponentConnectedToBranchAAndB ref={ref => { abComponentReference = ref; }} />
       </div>,
       element
     );
@@ -135,14 +158,20 @@ describe('Store', function () {
     await branchAComponentMounted;
     await branchBComponentMounted;
     await secondBranchBComponentMounted;
+    await abComponentMounted;
 
     const componentGroups = store.componentGroups;
 
     // ensure that there are three groups
-    expect(componentGroups.size).to.be.equal(3);
+    expect(componentGroups.size).to.be.equal(4);
 
     // ensure that there are two component connected to the group that selected `branchB`
-    expect(componentGroups.get(firstInstance.branchB)!.components.size).to.be.equal(2);
+    expect(componentGroups.get(firstInstance.branchB.hashCode())!.components.size).to.be.equal(2);
+
+    // ensure value equality works
+    expect(componentGroups.get(
+      Immutable.Map({ a: firstInstance.branchA, b: firstInstance.branchB }).hashCode()
+    )).to.not.be.undefined;
 
     // ensure that within, those three groups, all the respective components have been connected
     expect(Array
@@ -166,6 +195,12 @@ describe('Store', function () {
     expect(Array
       .from(componentGroups.values())
       .filter(componentGroup => componentGroup.components.has(secondBranchBComponentReference))
+      .length
+    ).to.be.equal(1);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(abComponentReference))
       .length
     ).to.be.equal(1);
 
