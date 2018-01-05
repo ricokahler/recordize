@@ -1,8 +1,6 @@
 import * as Immutable from 'immutable';
 import * as React from 'react';
 
-let a: object = {};
-
 type Optional<T> = T | undefined;
 interface TypeCapture<T> { }
 type V<Props> = {[K in keyof Props]: TypeCapture<Props[K]>};

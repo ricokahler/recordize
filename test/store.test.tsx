@@ -15,22 +15,102 @@ function wait(milliseconds: number) {
 }
 
 describe('Store', function () {
-  it(`adds a component to the 'componentGroups' on 'componentDidMount'`, async function () {
-    class FooRecord extends Record.define({
-      foo: '',
-      bar: 0,
+  it(`adds a components to the 'componentGroups' on 'componentDidMount'`, async function () {
+
+    class BranchARecord extends Record.define({
+      branchAKey: 'branch a value',
     }) { }
+
+    class BranchBRecord extends Record.define({
+      branchBKey: 'branch b value',
+    }) { }
+
+    class FooRecord extends Record.define({
+      rootKey: 'root value',
+      branchA: new BranchARecord(),
+      branchB: new BranchBRecord(),
+    }) { }
+
     const firstInstance = new FooRecord();
     const store = Record.createStore(firstInstance);
-    const mountedComponent = new DeferredPromise();
 
-    class Component extends store.connect({
-      get: store => ({}),
-      set: store => store,
+    const rootComponentMounted = new DeferredPromise();
+    const branchAComponentMounted = new DeferredPromise();
+    const branchBComponentMounted = new DeferredPromise();
+    const secondBranchBComponentMounted = new DeferredPromise();;
+
+    let rootComponentReference: any;
+    let branchAComponentReference: any;
+    let branchBComponentReference: any;
+    let secondBranchBComponentReference: any;
+
+    class ComponentConnectedToRoot extends store.connect({
+      get: store => ({
+        fromRoot: store.rootKey,
+      }),
+      set: (store, newValue) => store.set('rootKey', newValue.fromRoot),
     }) {
+
       componentDidMount() {
         super.componentDidMount();
-        mountedComponent.resolve();
+        rootComponentMounted.resolve();
+      }
+
+      render() {
+        return <div />;
+      }
+    }
+
+    class ComponentConnectedToBranchA extends store.connect({
+      select: store => store.branchA,
+      deselect: (store, branchA: BranchARecord) => store.set('branchA', branchA),
+      get: branchA => ({
+        fromBranchA: branchA.branchAKey,
+      }),
+      set: (branchA, value) => branchA.set('branchAKey', value.fromBranchA),
+    }) {
+
+      componentDidMount() {
+        super.componentDidMount();
+        branchAComponentMounted.resolve();
+      }
+
+      render() {
+        return <div />;
+      }
+    }
+
+    class ComponentConnectedToBranchB extends store.connect({
+      select: store => store.branchB,
+      deselect: (store, branchB: BranchBRecord) => store.set('branchB', branchB),
+      get: branchB => ({
+        fromBranchB: branchB.branchBKey,
+      }),
+      set: (branchB, value) => branchB.set('branchBKey', value.fromBranchB),
+    }) {
+
+      componentDidMount() {
+        super.componentDidMount();
+        branchBComponentMounted.resolve();
+      }
+
+      render() {
+        return <div />;
+      }
+    }
+
+    class ComponentAlsoConnectedToBranchB extends store.connect({
+      select: store => store.branchB,
+      deselect: (store, branchB: BranchBRecord) => store.set('branchB', branchB),
+      get: branchB => ({
+        fromBranchB: branchB.branchBKey,
+      }),
+      set: (branchB, value) => branchB.set('branchBKey', value.fromBranchB),
+    }) {
+
+      componentDidMount() {
+        super.componentDidMount();
+        secondBranchBComponentMounted.resolve();
       }
 
       render() {
@@ -40,17 +120,55 @@ describe('Store', function () {
 
     const element = document.createElement('div');
     document.body.appendChild(element);
-    let componentReference: any;
-    ReactDOM.render(<Component ref={ref => componentReference = ref} />, element);
 
-    await mountedComponent;
-    expect(store.componentGroups.size).to.be.equal(1);
+    ReactDOM.render(
+      <div>
+        <ComponentConnectedToRoot ref={ref => { rootComponentReference = ref; }} />
+        <ComponentConnectedToBranchA ref={ref => { branchAComponentReference = ref; }} />
+        <ComponentConnectedToBranchB ref={ref => { branchBComponentReference = ref; }} />
+        <ComponentAlsoConnectedToBranchB ref={ref => { secondBranchBComponentReference = ref; }} />
+      </div>,
+      element
+    );
 
-    const [selection, componentGroup] = Array.from(store.componentGroups.entries())[0];
+    await rootComponentMounted;
+    await branchAComponentMounted;
+    await branchBComponentMounted;
+    await secondBranchBComponentMounted;
 
-    expect(selection).to.be.equal(firstInstance);
-    expect(componentGroup.components.size).to.be.equal(1);
-    expect(componentGroup.components.keys().next().value).to.be.equal(componentReference);
+    const componentGroups = store.componentGroups;
+
+    // ensure that there are three groups
+    expect(componentGroups.size).to.be.equal(3);
+
+    // ensure that there are two component connected to the group that selected `branchB`
+    expect(componentGroups.get(firstInstance.branchB)!.components.size).to.be.equal(2);
+
+    // ensure that within, those three groups, all the respective components have been connected
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(rootComponentReference))
+      .length
+    ).to.be.equal(1);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(branchAComponentReference))
+      .length
+    ).to.be.equal(1);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(branchBComponentReference))
+      .length
+    ).to.be.equal(1);
+
+    expect(Array
+      .from(componentGroups.values())
+      .filter(componentGroup => componentGroup.components.has(secondBranchBComponentReference))
+      .length
+    ).to.be.equal(1);
+
   });
 
   it(`removes a component from the 'componentGroups' on 'componentWillUnmount'`);
