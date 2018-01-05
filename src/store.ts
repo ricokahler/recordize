@@ -60,8 +60,8 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     for (let [selectionHash, componentGroup] of componentGroups) {
       const previousSelection = componentGroup.selector(previousState);
       const newSelection = componentGroup.selector(currentState);
-      // early return immutable optimization
-      if (previousSelection === componentGroup.currentSelection) { continue; }
+      // early return optimization
+      if (previousSelection.equals(newSelection)) { continue; }
 
       // call component setState if no early return
       for (let [component, connectionOptions] of componentGroup.components) {
