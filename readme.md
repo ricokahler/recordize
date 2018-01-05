@@ -1,4 +1,4 @@
-# Recordize
+# Recordize &middot; [![Build Status](https://travis-ci.org/ricokahler/recordize.svg?branch=master)](https://travis-ci.org/ricokahler/recordize)
 
 > a state management library revolving around simplicity amd immutable records
 
