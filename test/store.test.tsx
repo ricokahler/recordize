@@ -305,7 +305,106 @@ describe('Store', function () {
     ).to.be.equal(1);
   });
 
-  it(`sets the correct initial state for a component considering the 'currentState' and 'initialState'`);
+  it(`sets the correct state considering the 'currentStore' and 'initialState'`, async function () {
+    class FooRecord extends Record.define({
+      foo: 'foo from store',
+      bar: 'bar from store',
+    }) { }
+
+    const store = Record.createStore(new FooRecord());
+    const firstComponentDidMount = new DeferredPromise();
+    const secondComponentDidMount = new DeferredPromise();
+
+    let wrapperRef: Wrapper = undefined as any;
+    const wrapperRefCaptured = new DeferredPromise();
+
+    class FirstComponent extends store.connect({
+      get: store => ({
+        fooFromStore: store.foo,
+        barFromStore: store.bar,
+      }),
+      set: store => store,
+      initialState: {
+        fooFromInitialState: 'foo from initial state',
+        barFromInitialState: 'bar from initial state',
+      }
+    }) {
+
+      componentDidMount() {
+        super.componentDidMount();
+        expect(this.state.fooFromStore).to.be.equal('foo from store');
+        expect(this.state.barFromStore).to.be.equal('bar from store');
+        expect(this.state.fooFromInitialState).to.be.equal('foo from initial state');
+        expect(this.state.barFromInitialState).to.be.equal('bar from initial state');
+        firstComponentDidMount.resolve();
+      }
+
+      render() {
+
+        return <div />;
+      }
+    }
+
+    class SecondComponent extends store.connect({
+      get: store => ({
+        fooFromStore: store.foo,
+        barFromStore: store.bar,
+      }),
+      set: (store) => store,
+    }) {
+
+      componentDidMount() {
+        super.componentDidMount();
+        // ensure that, when this component mounts, it has the value of the current state.
+        expect(this.state.fooFromStore).to.be.equal('foo changed');
+        secondComponentDidMount.resolve();
+      }
+
+      render() {
+        return <div />;
+      }
+    }
+
+    class Wrapper extends React.Component<{}, { mountSecondComponent: boolean }> {
+      constructor(props: {}) {
+        super(props);
+        this.state = {
+          mountSecondComponent: false,
+        };
+      }
+
+      render() {
+        this.state.mountSecondComponent
+        return <div>
+          <FirstComponent />
+          {/*if*/ this.state.mountSecondComponent ? <SecondComponent /> : null}
+        </div>;
+      }
+    }
+
+    const element = document.createElement('div');
+
+    ReactDOM.render(<Wrapper ref={ref => {
+      if (!ref) { return; }
+      wrapperRef = ref;
+      wrapperRefCaptured.resolve();
+    }} />, element);
+
+    // ensure that the tests written in the first component's `componentDidMount` runs
+    await firstComponentDidMount;
+
+    // ensure the reference has been captured
+    await wrapperRefCaptured;
+
+    // send an update changing the store's value of 'foo'
+    store.sendUpdate(store => store.set('foo', 'foo changed'));
+
+    // tell the wrapper to mount the second component
+    wrapperRef.setState(previousState => ({ ...previousState, mountSecondComponent: true }));
+
+    // ensure the tests written in the second component's `componentDidMount` runs
+    await secondComponentDidMount;
+  });
 
   it(`applies the 'initialComponentState' connection option when present`);
 
