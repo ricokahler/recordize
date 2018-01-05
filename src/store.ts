@@ -1,5 +1,6 @@
 import * as Immutable from 'immutable';
 import * as React from 'react';
+import { oneLine } from 'common-tags';
 
 type Optional<T> = T | undefined;
 interface TypeCapture<T> { }
@@ -104,7 +105,12 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
           components: new Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any, any>>(),
         };
         if (!componentGroup.currentSelection.equals(selection)) {
-          // console.warn('hash collision'); // TODO: add some sort of re-hashing mechanism
+          // TODO: add some sort of re-hashing mechanism
+          console.warn(oneLine`
+            Hash collision from Recordize. There is nothing to do to fix this warning. Please report
+            this to the repo: https://github.com/ricokahler/recordize if you see this warning
+            frequently.
+          `);
         }
         componentGroup.components.set(this, connectionOptions);
         componentGroups.set(selectionHashCode, componentGroup);
@@ -117,7 +123,12 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         const componentGroup = componentGroups.get(selectionHashCode);
         if (!componentGroup) { return; }
         if (!componentGroup.currentSelection.equals(selection)) {
-          // console.warn('hash collision'); // TODO: add some sort of re-hashing mechanism
+          // TODO: add some sort of re-hashing mechanism
+          console.warn(oneLine`
+            Hash collision from Recordize. There is nothing to do to fix this warning. Please report
+            this to the repo: https://github.com/ricokahler/recordize if you see this warning
+            frequently.
+          `);
         }
         componentGroup.components.delete(this);
       }
