@@ -42,24 +42,37 @@ interface ComponentGroup<Store, Scope> {
   components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any, any>>,
 }
 
-type ScopeHash = number;
 
 interface Equatable {
   hashCode(): number,
   equals(other: any): boolean,
 }
 
+/**
+ * a very simple class to represent a tuple of properties needed to make a modification to
+ * `componentGroups`. Classes are generally faster than array tuples.
+ */
+class ModificationTuple<Store, Scope extends Equatable> {
+  constructor(
+    public hashToDelete: number,
+    public hashToSet: number,
+    public newScope: Scope,
+    public componentGroup: ComponentGroup<Store, Equatable>,
+  ) { }
+}
+
 export function createStore<Store extends Immutable.Record<any>>(initialStore: Store) {
   let currentState = initialStore;
-  const componentGroups = new Map<ScopeHash, ComponentGroup<Store, Equatable>>();
+  const componentGroups = new Map<number, ComponentGroup<Store, Equatable>>();
 
   function sendUpdate(update: (previousStore: Store) => Store) {
     const previousState = currentState
     currentState = update(previousState);
 
-    // clone the component groups so that we can delete and add new ones
-    const currentComponentGroups = Array.from(componentGroups.entries());
-    for (let [scopeHash, componentGroup] of currentComponentGroups) {
+    // create a list of modifications that we'll use after we iterate through the `componentGroups`
+    const modifications: Array<ModificationTuple<Store, Equatable>> = [];
+
+    for (let [scopeHash, componentGroup] of componentGroups) {
       const previousScope = componentGroup.scope(previousState);
       const newScope = componentGroup.scope(currentState);
       // early return optimization
@@ -74,12 +87,19 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         }));
       }
 
-      // update scope
-      componentGroup.currentScope = newScope;
-      // it's okay to delete the scopeHash and re-assign it because we cloned the state of the
-      // componentGroups before we made modifications
-      componentGroups.delete(scopeHash);
-      componentGroups.set(newScope.hashCode(), componentGroup);
+      // push modification
+      modifications.push(new ModificationTuple(
+        scopeHash,
+        newScope.hashCode(),
+        newScope,
+        componentGroup
+      ));
+    }
+
+    for (let modification of modifications) {
+      componentGroups.delete(modification.hashToDelete);
+      modification.componentGroup.currentScope = modification.newScope;
+      componentGroups.set(modification.hashToSet, modification.componentGroup);
     }
   }
 
