@@ -59,7 +59,7 @@ describe('Record', function () {
     expect(simpleCallCount).to.be.equal(1);
   });
 
-  it(`memoizes hashCodes`, function () {
+  it(`memoizes 'hashCode's`, function () {
 
     let callCount = 0;
 
@@ -78,5 +78,32 @@ describe('Record', function () {
     record.hashCode();
 
     expect(callCount).to.be.equal(1);
+  });
+
+  it(`memoizes 'equals'`, function () {
+
+    let callCount = 0;
+
+    class FooRecord extends Record.define({
+      foo: 'some foo',
+      bar: 5,
+      get prop() {
+        callCount += 1;
+        return 'test';
+      }
+    }) { }
+
+    const recordA = new FooRecord();
+    const recordB = new FooRecord();
+    const result0 = recordA.equals(recordB);
+    const result1 = recordA.equals(recordB);
+    const result2 = recordA.equals(recordB);
+
+    expect(result0).to.be.equal(true);
+    expect(result1).to.be.equal(result0);
+    expect(result2).to.be.equal(result1);
+
+    // should only be called twice: once for `recordA` and once for `recordB`
+    expect(callCount).to.be.equal(2);
   });
 });
