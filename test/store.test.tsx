@@ -175,7 +175,6 @@ describe('Store', function () {
     }
 
     const element = document.createElement('div');
-    document.body.appendChild(element);
 
     class Wrapper extends React.Component<{}, { mounted: boolean }> {
       constructor(props: {}) {
@@ -406,15 +405,63 @@ describe('Store', function () {
     await secondComponentDidMount;
   });
 
-  it(`applies the 'initialComponentState' connection option when present`);
+  it(`updates with 'setStore' or 'setGlobalStore' or 'sendUpdate'`, async function () {
+    class FooRecord extends Record.define({
+      foo: 'initial foo',
+      bar: 'initial bar',
+      baz: 'initial baz',
+    }) { }
 
-  it(`sends an update when 'setStore' is called on a component`, );
+    const store = Record.createStore(new FooRecord());
+    let componentRef: Component = undefined as any;
+    const capturedRef = new DeferredPromise();
 
-  it(`sends an update when 'setGlobalStore' is called on a component`);
+    class Component extends store.connect({
+      get: store => ({
+        foo: store.foo,
+        bar: store.bar,
+      }),
+      set: (store, value) => store.set('foo', value.foo).set('bar', value.bar),
+    }) {
+
+      componentDidMount() {
+        super.componentDidMount();
+      }
+
+      render() {
+        return <div />;
+      }
+    }
+
+    expect(store.current().foo).to.be.equal('initial foo');
+    expect(store.current().bar).to.be.equal('initial bar');
+    expect(store.current().baz).to.be.equal('initial baz');
+
+    const element = document.createElement('div');
+    ReactDOM.render(<Component ref={ref => {
+      if (!ref) { return; }
+      componentRef = ref;
+      capturedRef.resolve();
+    }} />, element);
+    await capturedRef;
+
+    // send update using `setStore`
+    componentRef.setStore(previousState => ({
+      ...previousState,
+      foo: 'new foo',
+    }));
+    expect(store.current().foo).to.be.equal('new foo');
+
+    // send update using `setGlobalStore` 
+    componentRef.setGlobalStore(store => store.set('bar', 'new bar'));
+    expect(store.current().bar).to.be.equal('new bar');
+
+    // send update using `sendUpdate`
+    store.sendUpdate(store => store.set('baz', 'new baz'));
+    expect(store.current().baz).to.be.equal('new baz');
+  });
 
   it(`updates only the respective components considering 'scope'`);
-
-  it(`updates the 'scope' in the map of componentGroups`);
 
   /*
    * Note: theses tesst are solely for typings. The purpose is check to see if the typescript compiler
