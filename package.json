@@ -1,6 +1,6 @@
 {
   "name": "recordize",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A simple state management library revolving around immutable records",
   "main": "dist/recordize.js",
   "typings": "src/index.ts",
