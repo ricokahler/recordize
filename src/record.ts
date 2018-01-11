@@ -63,6 +63,13 @@ export function define<T>(recordDefault: T) {
       equalityCache.set(other, equals);
       return equals;
     }
+
+    static get recordDefault() {
+      return recordDefault;
+    }
   }
-  return RecordClass as new (t?: Partial<T>) => Immutable.Record<T> & Readonly<T> & RecordClass;
+
+  return RecordClass as { recordDefault: T } & (
+    new (t?: Partial<T>) => Immutable.Record<T> & Readonly<T> & RecordClass
+  );
 }

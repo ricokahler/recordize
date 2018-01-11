@@ -106,4 +106,15 @@ describe('Record', function () {
     // should only be called twice: once for `recordA` and once for `recordB`
     expect(callCount).to.be.equal(2);
   });
+
+  it(`returns the 'recordDefault'`, function () {
+    const recordDefault = {
+      foo: 'some foo',
+      bar: 'some bar',
+    };
+
+    class FooRecord extends Record.define(recordDefault) { }
+
+    expect(FooRecord.recordDefault).to.be.deep.equal(recordDefault);
+  });
 });
