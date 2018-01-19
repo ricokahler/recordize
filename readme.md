@@ -4,7 +4,15 @@
 
 **This library is a big work-in-progress!** There are no released versions yet. Check back soon.
 
-Recordize is a framework for creating React applications that Revolve around immutable records.
+Recordize is a framework for creating React applications that revolve around immutable records. This library should be put into the same bucket as Redux and could be used as a replacement to Redux in the future. The main goal of this library is provide a better way to structure React applications when using immutable persistent data structures.
+
+The basic development flow goes like this:
+
+* Create record classes to represent the instances of records in the application
+* Create one top-level record class that will hold all the application state. This is the store instance.
+* Pass an instance of that top-level class to the `Record.createStore` function to create a store
+* Create components by extending the class `store.connect` returns. `store.connect` takes in options to map: 1) the store instance to plain javascript objects and 2) plain javascript objects to the store
+* Dispatch updates by calling `this.setStore` on the component instance (similar to `this.setState`).
 
 ## Create a record class
 
@@ -71,8 +79,10 @@ class BazRecord extends Record.define({
 const store = Record.createStore(new BazRecord());
 
 class Counter extends store.connect({
+  // maps the store to a plain javascript object. this gets added to `this.state`
   get: store => ({ bazCount: store.baz }),
-  set: (store, value) => store.set('baz', value.bazCount),
+  // maps the value from `this.setStore` to the `store` instance
+  set: (previousStore, fromSetStore) => previousStore.set('baz', fromSetStore.bazCount),
 }) {
 
   clickHandler = () => {
@@ -91,8 +101,20 @@ class Counter extends store.connect({
   }
 }
 
+function App() {
+  // `Counter` element instances can be created multiple times and will share
+  // the same global state
+
+  // these instances don't need any special provider and can be nested freely
+  return <div>
+    <Counter />
+    <Counter />
+    <Counter />
+  </div>;
+}
+
 // renders the element without needing a provider
-ReactDOM.render(<Counter />, document.querySelector('.app'));
+ReactDOM.render(<App />, document.querySelector('.app'));
 ```
 
 # [Todo Example](./examples/todos/)
