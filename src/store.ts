@@ -36,12 +36,10 @@ interface TypeDefiner {
   typeOf: <R>(typeToQuery: R) => TypeCapture<R>,
 }
 
-type ReactProps<T> = Readonly<{ children?: React.ReactNode; }> & Readonly<T>;
-
 interface ComponentGroup<Store, Scope> {
   currentScope: Scope,
   scope: (store: Store) => Scope,
-  components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>,
+  components: Set<React.Component<any, any>>,
 }
 
 /**
@@ -71,7 +69,7 @@ export function handleUpdate<Store extends Immutable.Record<any>>(
     if (previousScope.equals(newScope)) { continue; }
 
     // call component setState if no early return
-    for (let component of componentGroup.components.keys()) {
+    for (let component of componentGroup.components) {
       component.forceUpdate();
     }
 
@@ -152,7 +150,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         const componentGroup = componentGroups.get(scopeHashCode) || {
           currentScope: scope,
           scope: connectionOptions.scope || ((store: Store) => store as any),
-          components: new Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>(),
+          components: new Set<React.Component<any, any>>(),
         };
         if (!componentGroup.currentScope.equals(scope)) {
           // TODO: add some sort of re-hashing mechanism
@@ -162,7 +160,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
             frequently.
           `);
         }
-        componentGroup.components.set(this, connectionOptions);
+        componentGroup.components.add(this);
         componentGroups.set(scopeHashCode, componentGroup);
       }
 
