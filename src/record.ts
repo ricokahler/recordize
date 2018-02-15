@@ -1,4 +1,5 @@
 import * as Immutable from 'immutable';
+import { Equatable } from './store';
 
 export function define<T>(recordDefault: T) {
   const BaseRecordClass: new (t?: Partial<T>) => Immutable.Record<T> = Immutable.Record(recordDefault);
@@ -7,7 +8,7 @@ export function define<T>(recordDefault: T) {
   // TODO: investigate: caching equals calls might waste too much memory vs saving computation time
   const equalsCache = new WeakMap<RecordClass, WeakMap<any, boolean>>();
   class RecordClass extends BaseRecordClass {
-    getOrCalculate<V>(name: string, a: any[] | (() => V), b?: () => V) {
+    getOrCalculate<V>(name: string, a: Equatable[] | (() => V), b?: () => V) {
       const dependencies = /*if*/ Array.isArray(a) ? a : [this];
       const calculate = /*if*/ typeof b === 'function' ? b : a;
       if (Array.isArray(calculate)) {

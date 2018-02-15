@@ -39,7 +39,7 @@ interface ComponentGroup<Store, Scope> {
   components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>,
 }
 
-interface Equatable {
+export interface Equatable {
   hashCode(): number,
   equals(other: any): boolean,
 }
