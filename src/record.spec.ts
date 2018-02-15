@@ -1,8 +1,7 @@
-import { expect } from 'chai';
 import * as Record from '../';
 
-describe('Record', function () {
-  it(`caches values with 'getOrCalculate'`, function () {
+describe('Record', () => {
+  it(`caches values with 'getOrCalculate'`, () => {
 
     let callCount = 0;
     let simpleCallCount = 0;
@@ -41,25 +40,25 @@ describe('Record', function () {
     const result1 = c.calculatedProperty(a, b);
     const result2 = c.calculatedProperty(a, b);
 
-    expect(result0).to.be.equal(result1);
-    expect(result1).to.be.equal(result2);
-    expect(callCount).to.be.equal(1);
+    expect(result0).toBe(result1);
+    expect(result1).toBe(result2);
+    expect(callCount).toBe(1);
 
     a = new A({ a: 3 });
     const result3 = c.calculatedProperty(a, b);
     const result4 = c.calculatedProperty(a, b);
-    expect(result2).to.not.be.equal(result3);
-    expect(result3).to.be.equal(result4);
-    expect(callCount).to.be.equal(2);
+    expect(result2).toBe(result3);
+    expect(result3).toBe(result4);
+    expect(callCount).toBe(2);
 
     c.simpleCalculatedProperty;
     c.simpleCalculatedProperty;
     const simpleResult = c.simpleCalculatedProperty;
-    expect(simpleResult).to.be.equal(c.c + 3);
-    expect(simpleCallCount).to.be.equal(1);
+    expect(simpleResult).toBe(c.c + 3);
+    expect(simpleCallCount).toBe(1);
   });
 
-  it(`memoizes 'hashCode's`, function () {
+  it(`memoizes 'hashCode's`, () => {
 
     let callCount = 0;
 
@@ -77,10 +76,10 @@ describe('Record', function () {
     record.hashCode();
     record.hashCode();
 
-    expect(callCount).to.be.equal(1);
+    expect(callCount).toBe(1);
   });
 
-  it(`memoizes 'equals'`, function () {
+  it(`memoizes 'equals'`, () => {
 
     let callCount = 0;
 
@@ -99,15 +98,15 @@ describe('Record', function () {
     const result1 = recordA.equals(recordB);
     const result2 = recordA.equals(recordB);
 
-    expect(result0).to.be.equal(true);
-    expect(result1).to.be.equal(result0);
-    expect(result2).to.be.equal(result1);
+    expect(result0).toBe(true);
+    expect(result1).toBe(result0);
+    expect(result2).toBe(result1);
 
     // should only be called twice: once for `recordA` and once for `recordB`
-    expect(callCount).to.be.equal(2);
+    expect(callCount).toBe(2);
   });
 
-  it(`returns the 'recordDefault'`, function () {
+  it(`returns the 'recordDefault'`, () => {
     const recordDefault = {
       foo: 'some foo',
       bar: 'some bar',
@@ -115,6 +114,6 @@ describe('Record', function () {
 
     class FooRecord extends Record.define(recordDefault) { }
 
-    expect(FooRecord.recordDefault).to.be.deep.equal(recordDefault);
+    expect(FooRecord.recordDefault).toEqual(recordDefault);
   });
 });

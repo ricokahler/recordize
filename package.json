@@ -1,13 +1,14 @@
 {
   "name": "recordize",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "description": "A simple state management library revolving around immutable records",
   "main": "dist/recordize.js",
   "typings": "src/index.ts",
   "scripts": {
     "test": "npm run build && npm run tests",
-    "tests": "mocha --require ts-node/register --watch-extensions ts,tsx \"test/**/*.{ts,tsx}\"",
+    "tests": "jasmine-ts \"src/**/*.spec.ts\"",
     "build": "webpack -p",
+    "watch": "webpack --watch",
     "prepublish": "npm run test"
   },
   "repository": {
@@ -31,13 +32,18 @@
   },
   "devDependencies": {
     "@types/chai": "^4.0.10",
+    "@types/jasmine": "^2.8.6",
     "@types/jsdom": "^11.0.4",
     "@types/mocha": "^2.2.45",
     "@types/react-dom": "^16.0.3",
     "awesome-typescript-loader": "^3.4.1",
     "chai": "^4.1.2",
+    "istanbul": "^0.4.5",
+    "jasmine-spec-reporter": "^4.2.1",
+    "jasmine-ts": "^0.2.1",
     "jsdom": "^11.5.1",
     "mocha": "^4.1.0",
+    "nyc": "^11.4.1",
     "react-dom": "^16.2.0",
     "ts-node": "^4.1.0",
     "typescript": "^2.6.2",
