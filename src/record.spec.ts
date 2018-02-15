@@ -47,8 +47,9 @@ describe('Record', () => {
     a = new A({ a: 3 });
     const result3 = c.calculatedProperty(a, b);
     const result4 = c.calculatedProperty(a, b);
-    expect(result2).toBe(result3);
+    const result5 = c.calculatedProperty(a, b);
     expect(result3).toBe(result4);
+    expect(result4).toBe(result5);
     expect(callCount).toBe(2);
 
     c.simpleCalculatedProperty;
