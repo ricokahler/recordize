@@ -4,117 +4,53 @@
 
 **This library is a big work-in-progress!** There are no released versions yet. Check back soon.
 
-Recordize is a framework for creating React applications that revolve around immutable records. This library should be put into the same bucket as Redux and could be used as a replacement to Redux in the future. The main goal of this library is provide a better way to structure React applications when using immutable persistent data structures.
+Recordize is a Redux-alternative library for state management in React applications that revolve around immutable records. The main goal of this library is provide *simple* way to structure React applications that utilize all the optimizations possible from using immutable data..
 
 The basic development flow goes like this:
 
-* Create record classes to represent the instances of records in the application
-* Create one top-level record class that will hold all the application state. This is the store instance.
-* Pass an instance of that top-level class to the `Record.createStore` function to create a store
-* Create components by extending the class `store.connect` returns. `store.connect` takes in options to map: 1) the store instance to plain javascript objects and 2) plain javascript objects to the store
-* Dispatch updates by calling `this.setStore` on the component instance (similar to `this.setState`).
+1. Create immutable record classes that will hold global/shared app state.
+2. Add methods that return copies of the records as "actions"
+3. Use `store.connect()` with `this.store` and `this.setStore` to create components that use the store.
 
-## Create a record class
+# [The counter example](./examples/counter)
 
-```ts
+```js
+import * as React from 'react';
 import * as Record from 'recordize';
 
-class FooRecord extends Record.define({
-  foo: 'initial foo value',
-}) { }
-
-const fooRecord = new FooRecord();
-console.log(fooRecord.foo); // 'initial foo value';
-```
-
-## Create cached "memoized" computed properties
-
-```ts
-import * as Record from 'recordize';
-
-let count = 0;
-class BarRecord extends Record.define({
-  bar: 2,
-  baz: 5,
+class CounterRecord extends Record.define({
+  count: 0,
 }) {
-  get barPlusBaz() {
-    return this.getOrCalculate('barPlusBas', () => {
-      count += 1;
-      // imagine this is some long calculation
-      // or even something like sorting an immutable list of 1000+ items
-      return this.bar + this.baz;
-    });
-  }
+  // add methods to create "actions"
+  // these methods uses the method of immutable.js to return an immutable copy of itself
+  increment() { return this.update('count', count => count + 1); }
+  decrement() { return this.update('count', count => count - 1); }
 }
 
-const barRecord = new BarRecord();
-console.log(barRecord.barPlusBaz); // 7
-console.log(barRecord.barPlusBaz); // 7
-console.log(barRecord.barPlusBaz); // 7
+const store = Record.createStore(new CounterRecord());
 
-// create a new record
-const newBarRecord = barRecord.set('bar', 3);
-console.log(barRecord.barPlusBaz); // 8
-console.log(barRecord.barPlusBaz); // 8
-// the count is now two
-console.log(count); // 2
-```
+class App extends store.connect() {
+  handlePlusClick = () => {
+    // `store.increment()` returns a new store
+    this.setStore(store => store.increment());
+  }
 
-## Create a store and connect it to components
-
-```tsx
-import * as Record from 'recordize';
-import * as React from 'react';
-import * as ReactDOM from 'react-dom';
-
-class AnotherRecord extends Record.define({
-  someKey: 'some value',
-}) { }
-
-class BazRecord extends Record.define({
-  baz: 0,
-  nested: new AnotherRecord(),
-}) { }
-
-const store = Record.createStore(new BazRecord());
-
-class Counter extends store.connect({
-  // maps the store to a plain javascript object. this gets added to `this.state`
-  get: store => ({ bazCount: store.baz }),
-  // maps the value from `this.setStore` to the `store` instance
-  set: (previousStore, fromSetStore) => previousStore.set('baz', fromSetStore.bazCount),
-}) {
-
-  clickHandler = () => {
-    // `this.setStore` has the same interface as `this.setState` but sets state globally
-    this.setStore(previousStore => ({
-      ...previousStore,
-      bazCount: previousStore.bazCount + 1,
-    }))
+  handleMinusClick = () => {
+    // you can also use the immutable.js methods to mutate the store
+    // the only requirement is that you have to return a copy of the store
+    this.setStore(store => store.update('count', count => count - 1));
   }
 
   render() {
     return <div>
-      <h1>Count: {this.state.bazCount /* adds values to `this.state` */}</h1>
-      <button onClick={this.clickHandler}>add one</button>
+      <h1>Count: {this.store.count}</h1>
+      <button onClick={this.handleMinusClick}>-</button>
+      <button onClick={this.handlePlusClick}>+</button>
     </div>;
   }
 }
 
-function App() {
-  // `Counter` element instances can be created multiple times and will share
-  // the same global state
-
-  // these instances don't need any special provider and can be nested freely
-  return <div>
-    <Counter />
-    <Counter />
-    <Counter />
-  </div>;
-}
-
-// renders the element without needing a provider
-ReactDOM.render(<App />, document.querySelector('.app'));
+export default App;
 ```
 
 # [Todo Example](./examples/todos/)

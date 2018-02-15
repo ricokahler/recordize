@@ -1,101 +1,35 @@
-import React, { Component } from 'react';
-import './App.css';
+import * as React from 'react';
 import * as Record from 'recordize';
 
 class CounterRecord extends Record.define({
   count: 0,
-}) { }
+}) {
+  // add methods to create "actions"
+  // these methods uses the method of immutable.js to return an immutable copy of itself
+  increment() { return this.update('count', count => count + 1); }
+  decrement() { return this.update('count', count => count - 1); }
+}
 
 const store = Record.createStore(new CounterRecord());
 
-const countConnector = {
-  get: store => ({
-    count: store.count,
-  }),
-  set: (store, { count }) => store.set('count', count)
-};
-
-class IncrementButton extends store.connect(countConnector) {
-  handleClick = () => {
-    this.setStore(previousState => ({
-      ...previousState,
-      count: previousState.count + 1,
-    }))
-  }
-  render() {
-    return <button onClick={this.handleClick}>+</button>;
-  }
-}
-
-class DecrementButton extends store.connect(countConnector) {
-  handleClick = () => {
-    this.setStore(previousState => ({
-      ...previousState,
-      count: previousState.count - 1,
-    }))
-  }
-  render() {
-    return <button onClick={this.handleClick}>-</button>;
-  }
-}
-
-class Counter extends store.connect(countConnector) {
-  render() {
-    return <div className="counter">
-      <DecrementButton />
-      <div>{this.state.count}</div>
-      <IncrementButton />
-    </div>
-  }
-}
-
-class StateStream extends store.connect({
-  get: store => { },
-  set: store => store,
-}) {
-
-  constructor() {
-    super();
-    this.state = {
-      updates: [],
-    }
+class App extends store.connect() {
+  handlePlusClick = () => {
+    // `store.increment()` returns a new store
+    this.setStore(store => store.increment());
   }
 
-  componentDidMount() {
-    this.stateStream.scan((updates, nextUpdate) => {
-      updates.push(JSON.stringify(nextUpdate.toJS()));
-      return updates;
-    }, []).subscribe(updates => {
-      this.setState(previousState => ({
-        ...previousState,
-        updates,
-      }));
-    });
+  handleMinusClick = () => {
+    // you can also use the immutable.js methods to mutate the store
+    // the only requirement is that you have to return a copy of the store
+    this.setStore(store => store.update('count', count => count - 1));
   }
 
   render() {
-    return <div className="state-stream">
-      <h2>State updates</h2>
-      <pre className="state-stream__states">
-        {this.state.updates.map((update, i) => <div key={i}>{update}</div>)}
-      </pre>
+    return <div>
+      <h1>Count: {this.store.count}</h1>
+      <button onClick={this.handleMinusClick}>-</button>
+      <button onClick={this.handlePlusClick}>+</button>
     </div>;
-  }
-}
-
-
-class App extends Component {
-  render() {
-    return (
-      <div className="app">
-        <h1>Counter example</h1>
-        <div className="counters-container">
-          <Counter />
-          <Counter />
-        </div>
-        <StateStream />
-      </div>
-    );
   }
 }
 
