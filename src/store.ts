@@ -2,7 +2,6 @@ import * as Immutable from 'immutable';
 import * as React from 'react';
 import { oneLine } from 'common-tags';
 
-type Optional<T> = T | undefined;
 interface TypeCapture<T> { }
 type V<Props> = {[K in keyof Props]: TypeCapture<Props[K]>};
 interface TypeDefiner {
@@ -25,12 +24,10 @@ interface TypeDefiner {
 
 type ReactProps<T> = Readonly<{ children?: React.ReactNode; }> & Readonly<T>;
 
-interface ConnectionOptions<Store, StateFromStore, Props, OptionalProps, StateFromComponent, Scope> {
+interface ConnectionOptions<Store, Props = {}, OptionalProps = {}, State = {}, Scope = Store> {
   scope?: (store: Store) => Scope,
   descope?: (store: Store, scope: Scope) => Store,
-  get: (scope: Scope, props: ReactProps<Props & Partial<OptionalProps>>) => StateFromStore,
-  set: (scope: Scope, value: any, props: ReactProps<Props & Partial<OptionalProps>>) => Scope,
-  initialState?: StateFromComponent,
+  initialState?: State,
   propTypes?: (types: TypeDefiner) => V<Props>,
   optionalPropTypes?: (types: TypeDefiner) => V<OptionalProps>
   propsExample?: Props,
@@ -39,9 +36,8 @@ interface ConnectionOptions<Store, StateFromStore, Props, OptionalProps, StateFr
 interface ComponentGroup<Store, Scope> {
   currentScope: Scope,
   scope: (store: Store) => Scope,
-  components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any, any>>,
+  components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>,
 }
-
 
 interface Equatable {
   hashCode(): number,
@@ -80,11 +76,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
 
       // call component setState if no early return
       for (let [component, connectionOptions] of componentGroup.components) {
-        const adaptedState = connectionOptions.get(newScope, component.props);
-        component.setState((previousState: any) => ({
-          ...(previousState || {}),
-          ...(adaptedState || {}),
-        }));
+        component.forceUpdate();
       }
 
       // push modification
@@ -103,20 +95,24 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
     }
   }
 
-  function connect<StateFromStore, Props, OptionalProps, StateFromComponent, Scope extends Equatable = Store>(
-    connectionOptions: ConnectionOptions<Store, StateFromStore, Props, OptionalProps, StateFromComponent, Scope>
+  function connect<Props = {}, OptionalProps = {}, State = {}, Scope extends Equatable = Store>(
+    connectionOptions: ConnectionOptions<Store, Props, OptionalProps, State, Scope>
   ) {
-    class ComponentClass extends React.Component<Props & Partial<OptionalProps>, StateFromComponent & StateFromStore> {
+    class ComponentClass extends React.Component<Props & Partial<OptionalProps>, State> {
 
       constructor(props: Props & Partial<OptionalProps>, context?: any) {
         super(props, context);
         const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
         const scope = getScope(currentStore);
-        const thisProps = this.props;
         this.state = {
-          ...(connectionOptions.get(scope, this.props) as any),
-          ...(connectionOptions.initialState || {}),
+          ...((connectionOptions.initialState || {}) as any),
         };
+      }
+
+      get store() {
+        const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
+        const scope = getScope(currentStore);
+        return scope;
       }
 
       componentDidMount() {
@@ -132,7 +128,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         const componentGroup = componentGroups.get(scopeHashCode) || {
           currentScope: scope,
           scope: connectionOptions.scope || ((store: Store) => store as any),
-          components: new Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any, any>>(),
+          components: new Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>(),
         };
         if (!componentGroup.currentScope.equals(scope)) {
           // TODO: add some sort of re-hashing mechanism
@@ -166,16 +162,14 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         }
       }
 
-      setStore(updateAdaptedState: (previousState: StateFromStore) => StateFromStore) {
+      setStore(updateScope: (previousState: Scope) => Scope) {
         const update = (previousStore: Store) => {
           const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
           const setScope = connectionOptions.descope || ((store: any, scope: any) => scope as Store);
 
           const scope = getScope(previousStore);
-          const adaptedStoreState = connectionOptions.get(scope, this.props);
-          const updatedStoreState = updateAdaptedState(adaptedStoreState);
-          const newScope = connectionOptions.set(scope, updatedStoreState, this.props);
-          const newStore = setScope(previousStore, newScope);
+          const updatedScope = updateScope(scope);
+          const newStore = setScope(previousStore, updatedScope);
           return newStore;
         };
         sendUpdate(update);

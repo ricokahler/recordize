@@ -10,54 +10,121 @@ class TodoRecord extends Record.define({
   position: 0,
 }) { }
 
-const memo = new WeakMap();
+/** @type {Immutable.Map<string, TodoRecord>} */
+const todoMap = Immutable.Map();
+
 class AppRecord extends Record.define({
-  todos: Immutable.Map(),
+  todoMap,
   visibilityFilter: 'All',
 }) {
-  get todoArray() {
-    if (memo.has(this)) {
-      return memo.get(this);
-    }
-    const value = (this.todos
-      .valueSeq()
-      .filter(todo => {
-        if (this.visibilityFilter === 'Active') {
-          return !todo.completed;
-        } else if (this.visibilityFilter === 'Completed') {
-          return todo.completed;
+  get todosSorted() {
+    return this.getOrCalculate('todosSorted', [this.todoMap], () => {
+      return this.todoMap
+        .valueSeq()
+        .sortBy(todo => todo.position);
+    });
+  }
+
+  get todos() {
+    return this.getOrCalculate('todos', () => {
+      return this.todosSorted.filter(todo => {
+        if (this.visibilityFilter === 'Completed') {
+          if (todo.completed) { return true; }
+          return false;
+        }
+        if (this.visibilityFilter === 'Todo') {
+          if (!todo.completed) { return true; }
+          return false;
         }
         return true;
-      })
-      .sortBy(todo => todo.position)
-      .toArray()
-    );
-    memo.set(this, value);
-    return value;
+      }).toArray();
+    });
   }
 
-  get itemsLeft() {
-    return this.todos.valueSeq().filter(todo => !todo.completed).count();
+  get todoCount() {
+    return this.getOrCalculate('itemsLeft', [this.todoMap], () => {
+      return this.todoMap
+        .valueSeq()
+        .filter(todo => !todo.completed)
+        .count();
+    });
   }
 
-  get completedItemsCount() {
-    return this.todos.valueSeq().filter(todo => todo.completed).count();
+  get completedCount() {
+    return this.getOrCalculate('completedItemsCount', [this.todoMap], () => {
+      return this.todoMap
+        .valueSeq()
+        .filter(todo => todo.completed)
+        .count();
+    });
+  }
+
+  get lastTodoPosition() {
+    return this.getOrCalculate('lastTodoPosition', [this.todosSorted], () => {
+      const lastTodo = this.todosSorted.last();
+      if (!lastTodo) { return 0; }
+      return lastTodo.position + 1;
+    });
+  }
+
+  /**
+   * Adds a todo and returns a new store
+   * @param {string} newTodo 
+   */
+  addTodo(newTodo) {
+    const id = uuid();
+    return this.update('todoMap', todoMap =>
+      todoMap.set(id, new TodoRecord({
+        id,
+        name: newTodo,
+        position: this.lastTodoPosition,
+      })));
+  }
+
+  /**
+   * @param {string} todoId 
+   */
+  deleteTodo(todoId) {
+    return this.update('todoMap', todoMap => todoMap.delete(todoId));
+  }
+
+  clearCompleted() {
+    return this.update('todoMap', todoMap => {
+      const completedTodos = todoMap
+        .valueSeq()
+        .filter(todo => todo.completed)
+        .map(todo => todo.id);
+
+      const todoMapCleared = completedTodos.reduce(
+        (todoMapCleared, completedTodoId) => todoMapCleared.delete(completedTodoId),
+        todoMap
+      );
+      return todoMapCleared;
+    });
+  }
+
+  /**
+   * 
+   * @param {string} todoId 
+   * @param {(todo: TodoRecord | undefined) => TodoRecord} update 
+   */
+  updateTodo(todoId, update) {
+    return this.update('todoMap', todoMap =>
+      todoMap.update(todoId, update));
+  }
+
+  /**
+   * 
+   * @param {'All' | 'Todo' | 'Completed'} visibility 
+   */
+  setVisibilityFilter(visibility) {
+    return this.set('visibilityFilter', visibility);
   }
 }
 
 const store = Record.createStore(new AppRecord());
 
-let i = 0;
 class NewTodo extends store.connect({
-  get: () => ({ newTodo: '' }),
-  set: (store, { newTodo }) => {
-    const id = uuid();
-    return store.update('todos', todos => todos.set(id, new TodoRecord({
-      id,
-      name: newTodo,
-      position: i++
-    })));
-  }
 }) {
 
   inputRef = document.createElement('input'); // create element so its never undefined
@@ -65,51 +132,46 @@ class NewTodo extends store.connect({
 
   handleSubmit = e => {
     e.preventDefault();
-    this.setStore(previousState => ({
-      ...previousState,
-      newTodo: this.inputRef.value,
-    }));
+    const newTodo = this.inputRef.value;
+    if (!newTodo) { return; }
+    this.setStore(store => store.addTodo(newTodo));
     this.inputRef.value = '';
   }
 
   render() {
     return <form className="new-todo" onSubmit={this.handleSubmit}>
       <input type="text" placeholder="What needs to be done?" ref={this.handleInputRef} />
-    </form>
+    </form>;
   }
 }
 
 class Todo extends store.connect({
-  get: (store, { id }) => {
-    const todo = store.todos.get(id) || new TodoRecord();
-    return {
-      name: todo.name,
-      completed: todo.completed,
-      deleted: false,
-    }
-  },
-  set: (store, { name, completed, deleted }, { id }) => {
-    if (deleted) {
-      return store.update('todos', todos => todos.delete(id));
-    }
-    return store.update('todos', todos =>
-      todos.update(id, todo =>
-        todo.set('name', name).set('completed', completed)
-      )
-    );
-  }
+  propsExample: { id: '' },
 }) {
-
   constructor(...params) {
     super(...params);
     this.inputId = `checkbox-${uuid()}`;
   }
 
+  get todo() {
+    const todoId = this.props.id;
+    if (!todoId) { return undefined; }
+    const todo = this.store.todoMap.get(todoId);
+    return todo;
+  }
+
   handleDelete = () => {
-    this.setStore(previousStore => ({
-      ...previousStore,
-      deleted: true,
-    }))
+    const todoId = this.props.id;
+    if (!todoId) { return; }
+    this.setStore(store => store.deleteTodo(todoId));
+  }
+
+  handleTodoCheck = () => {
+    const todoId = this.props.id;
+    if (!todoId) { return; }
+    this.setStore(store =>
+      store.updateTodo(todoId, todo =>
+        todo.set('completed', !todo.completed)));
   }
 
   render() {
@@ -118,52 +180,41 @@ class Todo extends store.connect({
         id={this.inputId}
         className="todo--checkbox"
         type="checkbox"
-        checked={this.state.completed} onChange={e => {
-          this.setStore(previousStore => ({
-            ...previousStore,
-            completed: !previousStore.completed,
-          }))
-        }} />
-      <label className="todo--label" htmlFor={this.inputId}>{this.state.name}</label>
+        checked={this.todo.completed}
+        onChange={this.handleTodoCheck}
+      />
+      <label
+        className="todo--label"
+        htmlFor={this.inputId}
+      >{this.todo.name}</label>
       <button
-        onClick={this.handleDelete}
         className="todo--delete"
+        onClick={this.handleDelete}
       >delete</button>
     </div>
   }
 }
 
-class TodoList extends store.connect({
-  get: store => ({
-    todosIds: store.todoArray.map(todo => todo.id),
-  }),
-  set: store => store,
+class Todos extends store.connect({
 }) {
   render() {
+    console.log('todos', this.store.todos.map(t => t.toJS()));
     return <div className="todo-list">
-      {this.state.todosIds.map(id => <Todo key={id} id={id} />)}
+      {this.store.todos.map(todo => todo.id).map(id => <Todo key={id} id={id} />)}
     </div>
   }
 }
 
 class VisibilityFilter extends store.connect({
-  get: store => ({
-    visibilityFilter: store.visibilityFilter,
-  }),
-  set: (store, { visibilityFilter }) => store.set('visibilityFilter', visibilityFilter),
 }) {
-
   handleClick(filter) {
-    this.setStore(previousStore => ({
-      ...previousStore,
-      visibilityFilter: filter,
-    }));
+    this.setStore(store => store.setVisibilityFilter(filter));
   }
 
   render() {
     return <div className="visibility-filter">
-      {['All', 'Active', 'Completed'].map((filter, key) => <button
-        className={`visibility-filter__button${/*if*/ this.state.visibilityFilter === filter
+      {['All', 'Todo', 'Completed'].map((filter, key) => <button
+        className={`visibility-filter__button${/*if*/ this.store.visibilityFilter === filter
           ? ' visibility-filter__button--active'
           : ''
           }`}
@@ -175,34 +226,22 @@ class VisibilityFilter extends store.connect({
 }
 
 class App extends store.connect({
-  get: store => ({
-    itemsLeft: store.itemsLeft,
-    completedItemsCount: store.completedItemsCount,
-  }),
-  set: store => store,
 }) {
 
   handleClearCompleted = () => {
-    this.setGlobalStore(store => {
-      const completedTodos = (store.todos
-        .valueSeq()
-        .filter(todo => todo.completed)
-        .map(todo => todo.id)
-      );
-      return store.update('todos', todos => todos.deleteAll(completedTodos));
-    });
+    this.setStore(store => store.clearCompleted());
   }
 
   render() {
     return <div className="todo-app">
       <NewTodo />
-      <TodoList />
+      <Todos />
       <div className="footer">
-        <span>{this.state.itemsLeft} items left</span>
+        <span>{this.store.todoCount} items left</span>
         <VisibilityFilter />
         <button
           onClick={this.handleClearCompleted}
-          className={`clear-completed${/*if*/ this.state.completedItemsCount > 0
+          className={`clear-completed${/*if*/ this.store.completedCount > 0
             ? ''
             : ' clear-completed--hidden'
             }`}
