@@ -198,7 +198,6 @@ class Todo extends store.connect({
 class Todos extends store.connect({
 }) {
   render() {
-    console.log('todos', this.store.todos.map(t => t.toJS()));
     return <div className="todo-list">
       {this.store.todos.map(todo => todo.id).map(id => <Todo key={id} id={id} />)}
     </div>

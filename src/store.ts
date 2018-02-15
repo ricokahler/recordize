@@ -2,6 +2,20 @@ import * as Immutable from 'immutable';
 import * as React from 'react';
 import { oneLine } from 'common-tags';
 
+export interface ConnectionOptions<Store, Props = {}, OptionalProps = {}, State = {}, Scope = Store> {
+  scope?: (store: Store) => Scope,
+  descope?: (store: Store, scope: Scope) => Store,
+  initialState?: State,
+  propTypes?: (types: TypeDefiner) => V<Props>,
+  optionalPropTypes?: (types: TypeDefiner) => V<OptionalProps>
+  propsExample?: Props,
+}
+
+export interface Equatable {
+  hashCode(): number,
+  equals(other: any): boolean,
+}
+
 interface TypeCapture<T> { }
 type V<Props> = {[K in keyof Props]: TypeCapture<Props[K]>};
 interface TypeDefiner {
@@ -24,31 +38,17 @@ interface TypeDefiner {
 
 type ReactProps<T> = Readonly<{ children?: React.ReactNode; }> & Readonly<T>;
 
-interface ConnectionOptions<Store, Props = {}, OptionalProps = {}, State = {}, Scope = Store> {
-  scope?: (store: Store) => Scope,
-  descope?: (store: Store, scope: Scope) => Store,
-  initialState?: State,
-  propTypes?: (types: TypeDefiner) => V<Props>,
-  optionalPropTypes?: (types: TypeDefiner) => V<OptionalProps>
-  propsExample?: Props,
-}
-
 interface ComponentGroup<Store, Scope> {
   currentScope: Scope,
   scope: (store: Store) => Scope,
   components: Map<React.Component<any, any>, ConnectionOptions<any, any, any, any, any>>,
 }
 
-export interface Equatable {
-  hashCode(): number,
-  equals(other: any): boolean,
-}
-
 /**
- * a very simple class to represent a tuple of properties needed to make a modification to
+ * a very simple class to represent a tuple of properties needed to make a mutation to
  * `componentGroups`. Classes are generally faster than array tuples.
  */
-class ModificationTuple<Store, Scope extends Equatable> {
+class MutationTuple<Store, Scope extends Equatable> {
   constructor(
     public hashToDelete: number,
     public hashToSet: number,
@@ -57,47 +57,71 @@ class ModificationTuple<Store, Scope extends Equatable> {
   ) { }
 }
 
+export function handleUpdate<Store extends Immutable.Record<any>>(
+  previousStore: Store,
+  currentStore: Store,
+  componentGroups: Map<number, ComponentGroup<Store, Equatable>>,
+) {
+  const mutations = [] as MutationTuple<Store, Equatable>[];
+
+  for (let [scopeHash, componentGroup] of componentGroups) {
+    const previousScope = componentGroup.scope(previousStore);
+    const newScope = componentGroup.scope(currentStore);
+    // early return optimization
+    if (previousScope.equals(newScope)) { continue; }
+
+    // call component setState if no early return
+    for (let component of componentGroup.components.keys()) {
+      component.forceUpdate();
+    }
+
+    // push mutation
+    mutations.push(new MutationTuple(
+      scopeHash,
+      newScope.hashCode(),
+      newScope,
+      componentGroup
+    ));
+  }
+
+  return mutations;
+}
+
 export function createStore<Store extends Immutable.Record<any>>(initialStore: Store) {
   let currentStore = initialStore;
   const componentGroups = new Map<number, ComponentGroup<Store, Equatable>>();
+  const subscriptions = new Set<(store: Store) => void>();
 
   function sendUpdate(update: (previousStore: Store) => Store) {
-    const previousStore = currentStore
+    const previousStore = currentStore;
     currentStore = update(previousStore);
-
-    // create a list of modifications that we'll use after we iterate through the `componentGroups`
-    const modifications: Array<ModificationTuple<Store, Equatable>> = [];
-
-    for (let [scopeHash, componentGroup] of componentGroups) {
-      const previousScope = componentGroup.scope(previousStore);
-      const newScope = componentGroup.scope(currentStore);
-      // early return optimization
-      if (previousScope.equals(newScope)) { continue; }
-
-      // call component setState if no early return
-      for (let [component, connectionOptions] of componentGroup.components) {
-        component.forceUpdate();
-      }
-
-      // push modification
-      modifications.push(new ModificationTuple(
-        scopeHash,
-        newScope.hashCode(),
-        newScope,
-        componentGroup
-      ));
+    for (const updateSubscription of subscriptions) {
+      updateSubscription(currentStore);
     }
 
-    for (let modification of modifications) {
-      componentGroups.delete(modification.hashToDelete);
-      modification.componentGroup.currentScope = modification.newScope;
-      componentGroups.set(modification.hashToSet, modification.componentGroup);
+    const mutations = handleUpdate(previousStore, currentStore, componentGroups);
+    
+    for (let mutation of mutations) {
+      componentGroups.delete(mutation.hashToDelete);
+      mutation.componentGroup.currentScope = mutation.newScope;
+      componentGroups.set(mutation.hashToSet, mutation.componentGroup);
     }
   }
 
+  function subscribe(update: (store: Store) => void) {
+    function subscription(store: Store) { update(store); }
+    subscriptions.add(subscription);
+    function unsubscribe() { subscriptions.delete(subscription); }
+
+    return unsubscribe;
+  }
+
+  function current() { return currentStore; }
+
   function connect<Props = {}, OptionalProps = {}, State = {}, Scope extends Equatable = Store>(
-    connectionOptions: ConnectionOptions<Store, Props, OptionalProps, State, Scope>
+    _connectionOptions?: ConnectionOptions<Store, Props, OptionalProps, State, Scope>
   ) {
+    const connectionOptions = _connectionOptions || {};
     class ComponentClass extends React.Component<Props & Partial<OptionalProps>, State> {
 
       constructor(props: Props & Partial<OptionalProps>, context?: any) {
@@ -115,7 +139,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         return scope;
       }
 
-      componentDidMount() {
+      componentWillMount() {
         const getScope = connectionOptions.scope || ((store: Store) => store as any as Scope);
         const scope = getScope(currentStore);
         if (typeof scope.hashCode !== 'function') {
@@ -157,7 +181,7 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
           `);
         }
         componentGroup.components.delete(this);
-        if (componentGroup.components.size === 0) {
+        if (componentGroup.components.size <= 0) {
           componentGroups.delete(scopeHashCode);
         }
       }
@@ -175,11 +199,15 @@ export function createStore<Store extends Immutable.Record<any>>(initialStore: S
         sendUpdate(update);
       }
 
-      setGlobalStore(update: (previousStore: Store) => Store) {
-        sendUpdate(update);
-      }
+      setGlobalStore(update: (previousStore: Store) => Store) { sendUpdate(update); }
     }
     return ComponentClass;
   }
-  return { connect, componentGroups, sendUpdate, current: () => currentStore };
+
+  return {
+    connect,
+    sendUpdate,
+    subscribe,
+    current,
+  };
 }
